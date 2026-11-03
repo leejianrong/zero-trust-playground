@@ -71,3 +71,17 @@ clinic: ## build and deploy the clinic app (web, records-api, billing, postgres)
 
 web: ## open the clinic app at http://localhost:8081 (port-forward, Ctrl-C to stop)
 	kubectl --context $(CTX) -n clinic port-forward svc/web 8081:8080
+
+.PHONY: headlamp headlamp-token headlamp-ui
+headlamp: ## install Headlamp (cluster dashboard) with a read-only login
+	@helm repo add headlamp https://kubernetes-sigs.github.io/headlamp/ >/dev/null 2>&1 || true
+	@helm repo update headlamp >/dev/null
+	helm --kube-context $(CTX) upgrade --install headlamp headlamp/headlamp --version $(HEADLAMP_CHART) \
+	  -n headlamp --create-namespace --wait --timeout 3m
+	kubectl --context $(CTX) apply -f deploy/headlamp/rbac.yaml
+
+headlamp-token: ## print a login token for Headlamp (ROLE=admin for the cluster-admin contrast)
+	@scripts/headlamp-token.sh
+
+headlamp-ui: ## open Headlamp at http://localhost:4466 (port-forward, Ctrl-C to stop)
+	kubectl --context $(CTX) -n headlamp port-forward svc/headlamp 4466:80

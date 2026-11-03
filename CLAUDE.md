@@ -13,6 +13,7 @@ Slices V1 (SPIRE identity, Identity view) and V2 (unprotected clinic app, attack
 - `make echo`: build and deploy the V1 spike workloads
 - `make clinic`: build and deploy web, records-api, billing, postgres and the attacker pod
 - `make web`: port-forward the clinic app to http://localhost:8081 (a real CRUD page: list, add, edit, delete patients)
+- `make headlamp` / `make headlamp-ui` / `make headlamp-token`: the cluster dashboard (read-only token; `ROLE=admin` for the contrast). Never print or log the token.
 - `make observer`: run the observer on :8765 (host process; reads the cluster via kubectl)
 - `make test`: no-infra tests, lint, type-check (the pre-push gate; `make hooks` installs it)
 - `make e2e`: Playwright against the live cluster (CI only by default)

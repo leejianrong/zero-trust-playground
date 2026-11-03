@@ -1,0 +1,11 @@
+# Read-only identity for the cluster dashboard. The built-in `view` role cannot read Secrets
+# and offers no write verbs, so Headlamp will not show edit or delete actions for it (ADR-0009).
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: headlamp-viewer, namespace: headlamp}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: {name: headlamp-viewer}
+subjects: [{kind: ServiceAccount, name: headlamp-viewer, namespace: headlamp}]
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: view}
