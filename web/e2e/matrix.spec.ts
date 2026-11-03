@@ -1,24 +1,29 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 
-// Every attack at every layer setting, checked against the catalogue. This is the V3 acceptance test:
-// a denial the playground demonstrates is a denial this file asserts.
+// Every attack at every layer setting, checked against the catalogue, including the network layer on its own and
+// together with mtls. This is the V3 and V4 acceptance test: a denial the playground demonstrates is a denial this
+// file asserts.
 const OBSERVER = "http://localhost:8765";
 const WEB = "http://localhost:8081";
 
 // mTLS enforce needs identity on, so identity goes to audit for that row.
 const SETTINGS = [
-  { identity: "off", mtls: "off" },
-  { identity: "audit", mtls: "audit" },
-  { identity: "audit", mtls: "enforce" },
+  { identity: "off", mtls: "off", network: "off" },
+  { identity: "audit", mtls: "audit", network: "off" },
+  { identity: "audit", mtls: "enforce", network: "off" },
+  { identity: "off", mtls: "off", network: "enforce" },
+  { identity: "audit", mtls: "enforce", network: "enforce" },
 ] as const;
 
-async function setModes(request: APIRequestContext, identity: string, mtls: string) {
+async function setModes(request: APIRequestContext, identity: string, mtls: string, network = "off") {
   // Order matters: the controller refuses mTLS on while identity is off, and identity off while mTLS is on.
   const steps = identity === "off" ? [["mtls", mtls], ["identity", identity]] : [["identity", identity], ["mtls", mtls]];
   for (const [layer, mode] of steps) {
     const r = await request.put(`${OBSERVER}/layers/${layer}`, { data: { mode } });
     expect(r.ok(), `${layer} to ${mode}`).toBe(true);
   }
+  const r = await request.put(`${OBSERVER}/layers/network`, { data: { mode: network } });
+  expect(r.ok(), `network to ${network}`).toBe(true);
   // The web service reports the modes it acts on. The others poll the same ConfigMap every 2 seconds.
   await expect.poll(async () => (await (await request.get(`${WEB}/healthz`)).json()).modes, { timeout: 10_000 })
     .toMatchObject({ identity, mtls });
@@ -26,22 +31,26 @@ async function setModes(request: APIRequestContext, identity: string, mtls: stri
 }
 
 test.afterAll(async ({ request }) => {
-  await setModes(request, "off", "off");
+  await setModes(request, "off", "off", "off");
 });
 
-for (const { identity, mtls } of SETTINGS) {
-  test(`every attack matches the catalogue with identity ${identity} and mtls ${mtls}`, async ({ request }) => {
-    test.setTimeout(240_000);
-    await setModes(request, identity, mtls);
+for (const { identity, mtls, network } of SETTINGS) {
+  test(`every attack matches the catalogue with identity ${identity}, mtls ${mtls} and network ${network}`, async ({ request }) => {
+    test.setTimeout(300_000);
+    await setModes(request, identity, mtls, network);
     const catalogue: { name: string }[] = await (await request.get(`${OBSERVER}/attacks`)).json();
-    expect(catalogue.length).toBeGreaterThanOrEqual(6);
+    expect(catalogue.length).toBeGreaterThanOrEqual(7);
     for (const { name } of catalogue) {
       const ev = (await (await request.post(`${OBSERVER}/attacks/${name}/run`, { timeout: 60_000 })).json()).evidence;
-      expect(ev.modes, name).toMatchObject({ identity, mtls, network: "off" });
+      expect(ev.modes, name).toMatchObject({ identity, mtls, network });
       expect(ev.as_expected, `${name}: ${ev.outcome}, expected ${ev.expected}`).toBe(true);
-      // A refusal that happens during a request names the layer. The forged certificate dies in the handshake first.
-      if (ev.outcome === "blocked" && name !== "forged-identity") expect(ev.stopped_by, name).toBe("mtls");
-      if (name === "forged-identity" && ev.outcome === "blocked") expect(ev.stopped_by).toBeNull();
+      if (ev.outcome !== "blocked") continue;
+      // A dropped connection never reaches a service, so the network is named (as an inference) whenever it is
+      // enforced. Otherwise a refusal during a request names mtls, and the forged certificate dies in the handshake
+      // before any request, so no layer is named.
+      if (network === "enforce") expect(ev.stopped_by, name).toBe("network (inferred)");
+      else if (name === "forged-identity") expect(ev.stopped_by, name).toBeNull();
+      else expect(ev.stopped_by, name).toBe("mtls");
     }
   });
 }
@@ -54,4 +63,16 @@ test("the legitimate clinic and the agent still work with mtls enforced", async 
   const summary = await request.post(`${WEB}/api/agent/summarise`, { timeout: 30_000 });
   expect(summary.ok()).toBe(true);
   expect((await summary.json()).summary).toMatch(/patients on file/);
+});
+
+test("the legitimate clinic and the agent still work with the network enforced, alone and with mtls", async ({ request }) => {
+  test.setTimeout(180_000);
+  for (const [identity, mtls] of [["off", "off"], ["audit", "enforce"]]) {
+    await setModes(request, identity, mtls, "enforce");
+    const patients = await request.get(`${WEB}/api/patients`);
+    expect(patients.ok(), `patients with mtls ${mtls}`).toBe(true);
+    const summary = await request.post(`${WEB}/api/agent/summarise`, { timeout: 30_000 });
+    expect(summary.ok(), `summary with mtls ${mtls}`).toBe(true);
+    expect((await summary.json()).summary).toMatch(/patients on file/);
+  }
 });

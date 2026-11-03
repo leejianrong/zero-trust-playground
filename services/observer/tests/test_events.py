@@ -387,3 +387,22 @@ def test_a_controller_apply_is_marked_controller_made_and_a_later_deletion_is_no
         assert {e["evidence"]["origin"] for e in added} == {"controller"}
         put_network(client, "off")
         assert {e["evidence"]["origin"] for e in store.since() if e["kind"] == "policy_removed"} == {"controller"}
+
+
+def expected_for(name, **modes):
+    from observer import layers
+    from observer.app import CATALOG
+    attack = next(a for a in json.loads(CATALOG.read_text()) if a["name"] == name)
+    return layers.expected(attack, {"identity": "off", "mtls": "off", "network": "off", **modes})
+
+
+def test_the_catalogue_says_which_layer_combinations_stop_each_attack():
+    through_the_wire = ["no-identity-records", "cross-namespace-billing", "mcp-no-identity", "forged-identity"]
+    for name in through_the_wire:  # a request to a service: mtls or the network stops it
+        assert expected_for(name) == "succeeds", name
+        assert expected_for(name, network="enforce") == "blocked", name
+        assert expected_for(name, identity="enforce", mtls="enforce") == "blocked", name
+    for name in ("read-postgres", "postgres-from-billing"):  # Postgres has no mtls: only the network stops it
+        assert expected_for(name, identity="enforce", mtls="enforce") == "succeeds", name
+        assert expected_for(name, network="enforce") == "blocked", name
+    assert expected_for("agent-prompt-injection", identity="enforce", mtls="enforce", network="enforce") == "succeeds"

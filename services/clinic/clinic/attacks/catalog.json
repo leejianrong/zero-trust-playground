@@ -4,7 +4,15 @@
     "title": "Read patient records straight from Postgres",
     "description": "From the attacker pod, log in to Postgres with the shared static password and dump the patients table.",
     "expected": {
-      "default": "succeeds"
+      "default": "succeeds",
+      "rules": [
+        {
+          "when": {
+            "network": "enforce"
+          },
+          "outcome": "blocked"
+        }
+      ]
     },
     "target": "postgres"
   },
@@ -41,6 +49,12 @@
             "mtls": "enforce"
           },
           "outcome": "blocked"
+        },
+        {
+          "when": {
+            "network": "enforce"
+          },
+          "outcome": "blocked"
         }
       ]
     },
@@ -56,6 +70,12 @@
         {
           "when": {
             "mtls": "enforce"
+          },
+          "outcome": "blocked"
+        },
+        {
+          "when": {
+            "network": "enforce"
           },
           "outcome": "blocked"
         }
@@ -74,6 +94,12 @@
         {
           "when": {
             "mtls": "enforce"
+          },
+          "outcome": "blocked"
+        },
+        {
+          "when": {
+            "network": "enforce"
           },
           "outcome": "blocked"
         }
@@ -97,6 +123,12 @@
         {
           "when": {
             "mtls": "enforce"
+          },
+          "outcome": "blocked"
+        },
+        {
+          "when": {
+            "network": "enforce"
           },
           "outcome": "blocked"
         }
