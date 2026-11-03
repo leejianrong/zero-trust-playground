@@ -1,0 +1,50 @@
+# Questions
+
+Statuses: `DECIDED` (user answered) · `ASSUMED` (default taken, correct it if wrong) · `FORK` (waiting on the user) · `DEFERRED` (not needed this milestone).
+
+Source pattern: https://validatedpatterns.io/patterns/layered-zero-trust/
+
+## Open forks
+
+None. Round 1 closed on 2026-11-03.
+
+## Register
+
+| ID | Question | Status | Answer or default | Landed |
+|----|----------|--------|-------------------|--------|
+| Q1 | Runtime: k3d or docker compose? | DECIDED | k3d. Smoke-tested: cluster up in ~20s, NetworkPolicy enforced | ADR-0001 |
+| Q2 | Guided exercises or a working system? | DECIDED | Working system, attacks, layer toggles, break-it exercises | ADR-0002 |
+| Q3 | GitOps, runtime monitoring, compliance, supply chain? | DECIDED | Out. Runtime kill is stretch slice V8 | ADR-0003 |
+| Q4 | Relationship to agent-auth-lab | DECIDED | Standalone, closing note on where agents fit | ADR-0006 |
+| Q5 | Output format | DECIDED | Markdown in repo, no docs site | ADR-0006 |
+| Q6 | Dashboard quality bar | DECIDED | First-class deliverable, six views, tested end to end, light/dark (user requirement) | ADR-0004, PLAN R7 |
+| Q7 | How layers are switched | ASSUMED | Controller with narrow RBAC, off/audit/enforce | ADR-0005 |
+| Q8 | Event model | ASSUMED | One versioned schema, SSE, SQLite replay | ADR-0004 |
+| Q9 | Toy app | ASSUMED | Clinic records: `web`, `records-api`, `billing`, Postgres, `attacker` | PLAN §Shape |
+| Q10 | App language | ASSUMED | Python 3.12 + FastAPI | ADR-0006 |
+| Q11 | SPIFFE client library | ASSUMED | `py-spiffe`; fall back to `spiffe-helper` or Go | ADR-0006, V1 spike |
+| Q12 | Vault licence | ASSUMED | Vault OSS (BSL) fine locally; OpenBao as swap | PLAN §Assumed |
+| Q13 | Memory | ASSUMED | Full stack under ~4 GB on this 8 GB host (about 5 GB free when checked) | ADR-0001, V6 |
+| Q14 | Upstream vs Red Hat builds | ASSUMED | Upstream only | ADR-0003 |
+| Q15 | Network `audit` mode | ASSUMED | Unavailable on k3s, UI says so | ADR-0005 |
+| Q16 | Secrets handling | ASSUMED | Throwaway, labelled, localhost-only credentials | PLAN §Scope |
+| Q17 | Versioning | ASSUMED | Pin everything in `versions.env`; event schema versioned `v: 1` | ADR-0004 |
+| Q18 | SPIRE federation | DEFERRED | Later playground | n/a |
+| Q19 | Offline operation | DEFERRED | First run needs internet; optional `k3d image import` pre-pull | ADR-0001 |
+
+## Coverage
+
+| Category | Covered by |
+|----------|-----------|
+| Primary user and actors | PLAN §Users, Q9 |
+| Scope boundary | Q3, Q18, PLAN §Scope |
+| Data model and identity | SPIFFE IDs (ADR-0003), event schema (Q8) |
+| State and storage | Ephemeral Postgres, SQLite event replay (ADR-0004) |
+| Concurrency and conflict | Not applicable: single learner. Dashboard vs `make` conflict resolved by cluster state (PLAN §Actors) |
+| Interfaces and contracts | Q8, PLAN §Affordances |
+| Failure behaviour | Every denial is an explicit verdict in the event stream (ADR-0004) |
+| External dependencies | Q11, Q12, Q14, Q19 |
+| Runtime and deployment | Q1, Q13 |
+| Measurable success | Attack matrix (V7), R8 under 10 minutes |
+| Security and secrets | Q7, Q16, ADR-0005 |
+| Versioning and migration | Q17 |

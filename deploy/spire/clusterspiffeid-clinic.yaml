@@ -1,0 +1,16 @@
+# One SPIFFE ID per ServiceAccount in the clinic namespace, short-lived so
+# rotation is visible in a demo (ADR-0004 / SLICES V1 step 7).
+apiVersion: spire.spiffe.io/v1alpha1
+kind: ClusterSPIFFEID
+metadata:
+  name: clinic
+spec:
+  className: spire-server-spire
+  spiffeIDTemplate: "spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}"
+  podSelector:
+    matchLabels: {}
+  namespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: clinic
+  ttl: 2m
+  jwtTtl: 2m

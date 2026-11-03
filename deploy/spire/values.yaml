@@ -1,0 +1,8 @@
+# Upstream SPIRE (spiffe/helm-charts-hardened). Trust domain and cluster name are
+# the only identity-relevant knobs the playground sets.
+global:
+  spire:
+    clusterName: ztp
+    trustDomain: playground.local
+tornjak-frontend:
+  enabled: false
