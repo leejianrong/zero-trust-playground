@@ -3,18 +3,27 @@
     "name": "read-postgres",
     "title": "Read patient records straight from Postgres",
     "description": "From the attacker pod, log in to Postgres with the shared static password and dump the patients table.",
-    "expected": {"all_off": "succeeds"}
+    "expected": {
+      "all_off": "succeeds"
+    },
+    "target": "postgres"
   },
   {
     "name": "no-identity-records",
     "title": "Call records-api with no identity",
     "description": "From the attacker pod, ask records-api for every patient without presenting any credential.",
-    "expected": {"all_off": "succeeds"}
+    "expected": {
+      "all_off": "succeeds"
+    },
+    "target": "records-api"
   },
   {
     "name": "cross-namespace-billing",
     "title": "Reach billing from another namespace",
     "description": "From the attacker pod, call billing's invoice list. The attacker does not belong to the clinic namespace.",
-    "expected": {"all_off": "succeeds"}
+    "expected": {
+      "all_off": "succeeds"
+    },
+    "target": "billing"
   }
 ]
