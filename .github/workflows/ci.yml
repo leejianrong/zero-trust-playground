@@ -16,6 +16,16 @@ jobs:
       - run: uv sync --frozen
       - run: uv run ruff check .
       - run: uv run pytest -q
+  clinic:
+    runs-on: ubuntu-latest
+    defaults: {run: {working-directory: services/clinic}}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with: {enable-cache: true}
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run pytest -q
   web:
     runs-on: ubuntu-latest
     defaults: {run: {working-directory: web}}
@@ -28,7 +38,7 @@ jobs:
       - run: npm test
       - run: npm run build
   e2e:
-    needs: [observer, web]
+    needs: [observer, clinic, web]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -41,6 +51,7 @@ jobs:
         run: curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=v5.9.0 bash
       - run: make up
       - run: make echo
+      - run: make clinic
       - run: uv sync --frozen
         working-directory: services/observer
       - run: npm ci

@@ -48,6 +48,7 @@ observer: ## run the observer on :8765 against the cluster
 
 test: ## fast no-infra tests, lint and type-check
 	cd services/observer && uv run ruff check . && uv run pytest -q
+	cd services/clinic && uv run ruff check . && uv run pytest -q
 	cd web && npm run check && npm test
 
 e2e: ## browser tests against the live cluster (needs make up && make echo)
