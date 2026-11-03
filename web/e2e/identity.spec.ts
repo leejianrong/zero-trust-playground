@@ -16,13 +16,18 @@ test("Identity view shows both workloads with a live countdown", async ({ page }
   expect(await card.getByRole("figure").getAttribute("aria-label")).not.toBe(first);
 });
 
-test("a rotation adds a row to the history", async ({ page }) => {
+test("a rotation shows a new current serial at the top of the history", async ({ page }) => {
   await page.goto("/");
   const card = page.locator("article", { hasText: "echo-a" });
-  await expect(card.locator("li")).not.toHaveCount(0, { timeout: 30_000 });
-  const before = await card.locator("li").count();
-  // SVID TTL is 2 minutes and SPIRE rotates at half-life, so a new serial lands within ~70s.
-  await expect(async () => expect(await card.locator("li").count()).toBeGreaterThan(before)).toPass({ timeout: 100_000 });
+  const current = card.locator("li.now .data").first();
+  await expect(current).toHaveText(/^[0-9a-f]{8}$/, { timeout: 30_000 });
+  // On load the dashboard replays old events, so the serial changes for a moment. Wait until it holds still.
+  let last = "";
+  await expect.poll(async () => { const t = (await current.textContent())!; const same = t === last; last = t; return same; },
+    { intervals: [1000], timeout: 15_000 }).toBe(true);
+  const before = last;
+  // TTL is 2 minutes and SPIRE rotates at half-life, so a new serial lands within ~70s.
+  await expect(current).not.toHaveText(before, { timeout: 100_000 });
 });
 
 for (const theme of ["light", "dark"] as const) {

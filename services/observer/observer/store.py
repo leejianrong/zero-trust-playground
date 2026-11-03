@@ -17,10 +17,11 @@ class Store:
             self._db.commit()
         return {**event, "id": cur.lastrowid}
 
-    def since(self, last_id: int = 0, limit: int = 500) -> list[dict]:
+    def since(self, last_id: int = 0, limit: int = 500, trace: str | None = None) -> list[dict]:
+        where, args = ("AND json_extract(body, '$.trace') = ?", (trace,)) if trace else ("", ())
         with self._lock:
             rows = self._db.execute(
-                "SELECT id, body FROM events WHERE id > ? ORDER BY id LIMIT ?", (last_id, limit)
+                f"SELECT id, body FROM events WHERE id > ? {where} ORDER BY id LIMIT ?", (last_id, *args, limit)
             ).fetchall()
         return [{**json.loads(body), "id": id_} for id_, body in rows]
 

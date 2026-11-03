@@ -32,3 +32,7 @@ def test_a_trace_id_is_created_when_absent_and_passed_downstream(capsys):
 def test_health_checks_are_not_logged(capsys):
     make().get("/healthz")
     assert capsys.readouterr().out == ""
+
+
+def test_the_trace_id_is_returned_so_a_page_can_show_it():
+    assert make().get("/hop", headers={"x-trace-id": "abc"}).headers["x-trace-id"] == "abc"
