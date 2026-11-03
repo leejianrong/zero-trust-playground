@@ -2,8 +2,9 @@ import json
 from pathlib import Path
 
 import httpx
+from cryptography import x509
 
-from clinic.attacks.run import ATTACKS, run
+from clinic.attacks.run import ATTACKS, CLAIMED, forged_certificate, run
 
 CATALOG = json.loads((Path(__file__).parent.parent / "clinic/attacks/catalog.json").read_text())
 
@@ -12,9 +13,20 @@ def client(handler):
     return httpx.Client(transport=httpx.MockTransport(handler))
 
 
-def test_every_catalogued_attack_has_an_implementation_and_a_baseline_expectation():
+def test_every_catalogued_attack_has_an_implementation_and_a_default_expectation():
     assert {a["name"] for a in CATALOG} == set(ATTACKS)
-    assert all(a["expected"]["all_off"] == "succeeds" for a in CATALOG)
+    assert all(a["expected"]["default"] == "succeeds" for a in CATALOG)
+
+
+def test_an_attack_tags_every_request_with_one_trace_id_and_reports_it():
+    seen = []
+
+    def handler(request):
+        seen.append(request.headers.get("x-trace-id"))
+        return httpx.Response(200, json=[])
+
+    result = run("no-identity-records", client(handler))
+    assert result["trace"] and set(seen) == {result["trace"]}
 
 
 def test_http_attack_succeeds_when_the_service_answers():
@@ -46,7 +58,7 @@ def test_injection_attack_succeeds_only_if_the_decoy_is_gone():
             return httpx.Response(200, json=[{"id": i} for i in state["patients"]])
         if request.method == "DELETE":
             return httpx.Response(204 if state["patients"].pop(int(path.rsplit("/", 1)[-1]), None) else 404)
-        if path == "/tasks/summarise":
+        if path == "/api/agent/summarise":
             if state["agent_obeys"]:
                 state["patients"].pop(10)  # the decoy is the first record planted
             return httpx.Response(200, json={"tool_calls": [{"tool": "delete_patient"}]})
@@ -59,3 +71,11 @@ def test_injection_attack_succeeds_only_if_the_decoy_is_gone():
     state.update(patients={}, next=10, agent_obeys=False)
     assert run("agent-prompt-injection", client(web))["outcome"] == "blocked"
     assert state["patients"] == {}
+
+
+def test_the_forged_certificate_names_the_web_app_but_is_signed_by_itself():
+    pem, _ = forged_certificate()
+    cert = x509.load_pem_x509_certificate(pem.encode())
+    san = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+    assert san.get_values_for_type(x509.UniformResourceIdentifier) == [CLAIMED]
+    assert cert.issuer == cert.subject  # no CA vouches for it

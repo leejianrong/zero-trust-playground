@@ -67,7 +67,7 @@ def spiffe(name: str) -> str:
 @pytest.fixture
 def server():
     ca = Ca("playground")
-    state = {"server": ca.issue(spiffe("records-api"))}
+    state = {"server": ca.issue(spiffe("records-api")), "verify": True}
     peers = Peers()
     app = FastAPI()
 
@@ -81,9 +81,10 @@ def server():
         port=0,
         log_level="warning",
         http=protocol_class(peers),
-        ssl_context_factory=ssl_context_factory(lambda: state["server"]),
+        ssl_context_factory=ssl_context_factory(lambda: state["server"], lambda: state["verify"]),
     )
     srv = uvicorn.Server(config)
+    state["apply"] = config.ssl_context_factory.apply
     threading.Thread(target=srv.run, daemon=True).start()
     while not srv.started:
         time.sleep(0.01)
@@ -122,6 +123,18 @@ def test_certificate_from_another_ca_fails_the_handshake(server):
     with pytest.raises(httpx.TransportError) as err:
         get(url, ca, forged)
     assert "VERIFY_FAILED" not in str(err.value)  # the server refused it, not the client
+
+
+def test_with_checking_off_a_forged_certificate_is_accepted_and_means_nothing(server):
+    ca, state, url = server
+    forged = replace(Ca("forger").issue(spiffe("web")), bundle_pem=ca.cert.public_bytes(PEM).decode())
+    state["verify"] = False
+    state["apply"]()
+    assert get(url, ca, forged) is None  # connected, but the server never looked at the certificate
+    state["verify"] = True  # the next connection is checked, with no restart
+    state["apply"]()
+    with pytest.raises(httpx.TransportError):
+        get(url, ca, forged)
 
 
 def test_rotated_server_certificate_reaches_new_connections_and_keeps_old_ones(server):

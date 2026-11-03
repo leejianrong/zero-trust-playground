@@ -29,7 +29,7 @@ class ModeChange(BaseModel):
 
 
 def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl_exec, catalog=CATALOG,
-               probe_url=links.probe, kube=kubectl):
+               probe_url=links.probe, kube=kubectl, wait=asyncio.sleep):
     store = store or Store("observer.db")
     attacks = {a["name"]: a for a in json.loads(Path(catalog).read_text())}
 
@@ -71,6 +71,16 @@ def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl
 
         return StreamingResponse(stream(), media_type="text/event-stream")
 
+    async def stopped_by(trace: str | None) -> str | None:
+        """The layer of the first deny recorded under the attack's trace id. Workload logs reach the store a moment
+        after the request, so look a few times. A refusal at the TLS handshake has no request, so no event."""
+        for _ in range(6 if trace else 0):
+            denies = [e for e in store.since(trace=trace) if e["verdict"] == "deny" and e["kind"] != "attack_result"]
+            if denies:
+                return denies[0]["layer"]
+            await wait(0.5)
+        return None
+
     @app.get("/attacks")
     def list_attacks():
         return list(attacks.values())
@@ -85,11 +95,13 @@ def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl
             result = json.loads(out.strip().splitlines()[-1])
         except (IndexError, json.JSONDecodeError):
             raise HTTPException(502, "attacker pod gave no result; is `make clinic` deployed?") from None
-        verdict = "allow" if result["outcome"] == "succeeds" else "deny"
-        ev = store.append(event("app", "attack_result", verdict, src="attacker", dst=attack["target"],
-                                attack=name, outcome=result["outcome"], expected=attack["expected"]["all_off"],
-                                detail=result["evidence"]))
-        return ev
+        modes = await current_modes()
+        outcome, trace = result["outcome"], result.get("trace")
+        expected = layers.expected(attack, modes)
+        extra = {"stopped_by": await stopped_by(trace)} if outcome == "blocked" else {}
+        return store.append(event("app", "attack_result", "allow" if outcome == "succeeds" else "deny", src="attacker",
+                                  dst=attack["target"], trace=trace, attack=name, outcome=outcome, expected=expected,
+                                  as_expected=outcome == expected, modes=modes, detail=result["evidence"], **extra))
 
     @app.post("/app/use")
     async def use_app():

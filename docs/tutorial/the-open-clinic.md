@@ -60,5 +60,6 @@ Each result is also stored as an `attack_result` event, so `curl -s 'localhost:8
 
 ## Next steps
 
+- [Turn on mutual TLS](layers-and-mtls.md) switches the first layers on and reruns the attacks.
 - [Agents and MCP](agents-and-mcp.md) adds an AI agent as a new kind of client.
 - [Layered zero trust](concepts/layered-zero-trust.md) explains which layer answers each attack.

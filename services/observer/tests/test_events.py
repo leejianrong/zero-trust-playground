@@ -108,8 +108,23 @@ def fake_exec(output):
     return exec_in
 
 
-def api(output, store=None):
-    return TestClient(create_app(store or Store(), sources=(), exec_in=fake_exec(output)))
+def fake_kube(mtls="off"):
+    async def kube(*args):
+        return json.dumps({"data": {"identity": "off" if mtls == "off" else "enforce", "mtls": mtls}})
+    return kube
+
+
+async def no_wait(_):
+    pass
+
+
+def api(output, store=None, mtls="off"):
+    return TestClient(create_app(store or Store(), sources=(), exec_in=fake_exec(output), kube=fake_kube(mtls),
+                                 wait=no_wait))
+
+
+def attack_out(name, outcome, **extra):
+    return json.dumps({"attack": name, "outcome": outcome, "evidence": {}, **extra})
 
 
 def test_running_an_attack_records_its_result_and_the_expectation():
@@ -118,6 +133,7 @@ def test_running_an_attack_records_its_result_and_the_expectation():
         .post("/attacks/read-postgres/run").json()
     jsonschema.validate({k: v for k, v in body.items()}, SCHEMA)
     assert (body["verdict"], body["dst"], body["evidence"]["expected"]) == ("allow", "postgres", "succeeds")
+    assert body["evidence"]["modes"] == {"identity": "off", "mtls": "off"} and body["evidence"]["as_expected"] is True
     assert store.since(0)[0]["kind"] == "attack_result"
 
 
@@ -214,3 +230,35 @@ def test_a_long_history_replays_without_pausing_between_pages(monkeypatch):
             if last == 3200:
                 break
     assert last == 3200 and len(pauses) <= 1
+
+
+def run_attack(name, outcome, mtls="off", store=None, **extra):
+    return api(attack_out(name, outcome, **extra), store, mtls).post(f"/attacks/{name}/run").json()
+
+
+def test_the_expected_outcome_follows_the_layer_modes():
+    blocked = run_attack("no-identity-records", "blocked", "enforce")
+    assert (blocked["evidence"]["expected"], blocked["evidence"]["as_expected"]) == ("blocked", True)
+    open_ = run_attack("no-identity-records", "succeeds", "enforce")
+    assert (open_["evidence"]["expected"], open_["evidence"]["as_expected"]) == ("blocked", False)
+
+
+def test_prompt_injection_is_expected_to_succeed_even_with_mtls_enforced():
+    ev = run_attack("agent-prompt-injection", "succeeds", "enforce")
+    assert (ev["evidence"]["expected"], ev["evidence"]["as_expected"]) == ("succeeds", True)
+
+
+def test_a_blocked_attack_names_the_layer_whose_deny_shares_its_trace():
+    store = Store()
+    store.append(event("mtls", "authorisation", "deny", src="anonymous", dst="records-api", trace="t1"))
+    store.append(event("network", "authorisation", "deny", src="anonymous", dst="records-api", trace="other"))
+    ev = run_attack("no-identity-records", "blocked", "enforce", store, trace="t1")
+    assert ev["evidence"]["stopped_by"] == "mtls" and ev["trace"] == "t1"
+
+
+def test_a_blocked_attack_with_no_deny_event_has_no_layer_to_name():
+    assert run_attack("no-identity-records", "blocked", "enforce", trace="t2")["evidence"]["stopped_by"] is None
+
+
+def test_a_successful_attack_has_nothing_to_stop_it():
+    assert "stopped_by" not in run_attack("no-identity-records", "succeeds", trace="t3")["evidence"]

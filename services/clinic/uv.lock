@@ -750,6 +750,7 @@ name = "ztp-clinic"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "cryptography" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "mcp" },
@@ -760,7 +761,6 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "cryptography" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff" },
@@ -768,6 +768,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "cryptography", specifier = ">=43" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "mcp", specifier = ">=2.3.0" },
@@ -778,7 +779,6 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "cryptography", specifier = ">=43" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-asyncio", specifier = ">=0.24" },
     { name = "ruff", specifier = ">=0.8" },

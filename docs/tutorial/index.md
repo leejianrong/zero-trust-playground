@@ -14,11 +14,12 @@ It follows the [Layered Zero Trust validated pattern](https://validatedpatterns.
 | The clinic app as a user | the clinic page on port 8081 | [The open clinic](the-open-clinic.md) |
 | The cluster as an operator | Headlamp on port 4466 | [Read the cluster with Headlamp](how-to/read-the-cluster-with-headlamp.md) |
 | Each workload's identity, rotating | our dashboard on port 5173 | [Get started](get-started.md) |
+| Layers switched off, audit and enforce | the Layers and Architecture views on port 5173 | [Turn on mutual TLS](layers-and-mtls.md) |
 | An AI agent using the app | the command line (`make attack`) | [Agents and MCP](agents-and-mcp.md) |
 
 ## Where the playground is today
 
-Slices V1 and V2 and the agent baseline (V2b) are built. That means every workload can get an identity, there is a real app, and **every attack succeeds**. The layers that stop them (mTLS, network policy, Vault, Keycloak, agent scopes) arrive next. The open baseline is useful on its own, because it shows exactly what each of those layers has to fix.
+Slices V1, V2, V2b and V3 are built. Every workload has an identity, there is a real app, and with no layers on **every attack succeeds**. Switch on identity and mutual TLS, and three of the six attacks are blocked. The rest need network policy, Vault, Keycloak and agent scopes, which arrive next.
 
 ## What you need
 

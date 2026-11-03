@@ -15,6 +15,14 @@ def refusal(current: dict, layer: str, mode: str) -> str | None:
     return None
 
 
+def expected(attack: dict, modes: dict) -> str:
+    """What this attack should do under the current modes: the first rule whose conditions all hold, else the default."""
+    for rule in attack["expected"].get("rules", []):
+        if all(modes.get(layer) == mode for layer, mode in rule["when"].items()):
+            return rule["outcome"]
+    return attack["expected"]["default"]
+
+
 def parse(configmap_json: str) -> dict:
     data = json.loads(configmap_json).get("data", {})
     return {layer: data.get(layer, "off") for layer in LAYERS}

@@ -9,6 +9,7 @@ from .common import client, instrument
 app = instrument(FastAPI(title="web"), "web")
 RECORDS = os.environ.get("RECORDS_URL", "http://records-api.clinic.svc:8080")
 BILLING = os.environ.get("BILLING_URL", "http://billing.clinic.svc:8080")
+AGENT = os.environ.get("AGENT_URL", "http://agent.agents.svc:8080")
 PAGE = Path(__file__).parent / "static/index.html"
 
 
@@ -51,6 +52,13 @@ def remove_patient(patient_id: int):
 def invoice(patient_id: int):
     with client("web") as c:
         return relay(c.get(f"{BILLING}/invoices/{patient_id}"))
+
+
+@app.post("/api/agent/summarise")
+def summarise():
+    """Summarise with AI: the user's request goes to the agent, which reads the records through the MCP tools."""
+    with client("web") as c:
+        return relay(c.post(f"{AGENT}/tasks/summarise", timeout=30))
 
 
 @app.get("/visit/{patient_id}")

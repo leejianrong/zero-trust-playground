@@ -24,7 +24,7 @@ This playground borrows the Layer 0 ideas and the Layer 2 idea of a real app, on
 
 | Pattern component | In the playground | State |
 |---|---|---|
-| SPIFFE and SPIRE (workload identity) | SPIRE on k3d, one identity per service account | Issuing identities. Services do not use them yet. |
+| SPIFFE and SPIRE (workload identity) | SPIRE on k3d, one identity per service account | Built. Services use their identities for mutual TLS (see [Turn on mutual TLS](../layers-and-mtls.md)). |
 | Network policies | Default-deny with explicit allows | Not built yet |
 | HashiCorp Vault and External Secrets | Short-lived database credentials | Not built yet |
 | Keycloak (users) | One login client per app | Not built yet |

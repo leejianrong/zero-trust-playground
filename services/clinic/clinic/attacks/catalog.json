@@ -4,7 +4,7 @@
     "title": "Read patient records straight from Postgres",
     "description": "From the attacker pod, log in to Postgres with the shared static password and dump the patients table.",
     "expected": {
-      "all_off": "succeeds"
+      "default": "succeeds"
     },
     "target": "postgres"
   },
@@ -13,7 +13,15 @@
     "title": "Call records-api with no identity",
     "description": "From the attacker pod, ask records-api for every patient without presenting any credential.",
     "expected": {
-      "all_off": "succeeds"
+      "default": "succeeds",
+      "rules": [
+        {
+          "when": {
+            "mtls": "enforce"
+          },
+          "outcome": "blocked"
+        }
+      ]
     },
     "target": "records-api"
   },
@@ -22,7 +30,15 @@
     "title": "Reach billing from another namespace",
     "description": "From the attacker pod, call billing's invoice list. The attacker does not belong to the clinic namespace.",
     "expected": {
-      "all_off": "succeeds"
+      "default": "succeeds",
+      "rules": [
+        {
+          "when": {
+            "mtls": "enforce"
+          },
+          "outcome": "blocked"
+        }
+      ]
     },
     "target": "billing"
   },
@@ -32,16 +48,47 @@
     "description": "From the attacker pod, connect to records-mcp directly and ask it to list every patient. No agent, no person, no credential.",
     "target": "records-mcp",
     "expected": {
-      "all_off": "succeeds"
+      "default": "succeeds",
+      "rules": [
+        {
+          "when": {
+            "mtls": "enforce"
+          },
+          "outcome": "blocked"
+        }
+      ]
+    }
+  },
+  {
+    "name": "forged-identity",
+    "title": "Pretend to be the web app with a forged certificate",
+    "description": "From the attacker pod, connect to records-api's mTLS port with a self-signed certificate that names itself as the web app's SPIFFE ID, and ask for every patient.",
+    "target": "records-api",
+    "expected": {
+      "default": "succeeds",
+      "rules": [
+        {
+          "when": {
+            "mtls": "audit"
+          },
+          "outcome": "blocked"
+        },
+        {
+          "when": {
+            "mtls": "enforce"
+          },
+          "outcome": "blocked"
+        }
+      ]
     }
   },
   {
     "name": "agent-prompt-injection",
     "title": "Let an agent summarise a poisoned record",
-    "description": "A user-entered diagnosis hides an instruction. The simulated agent summarises the records, obeys it, and deletes a decoy patient it was never asked to touch.",
+    "description": "A user-entered diagnosis hides an instruction. A user presses Summarise with AI in the clinic app. The simulated agent summarises the records, obeys the hidden instruction, and deletes a decoy patient it was never asked to touch.",
     "target": "records-mcp",
     "expected": {
-      "all_off": "succeeds"
+      "default": "succeeds"
     }
   }
 ]

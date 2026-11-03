@@ -77,3 +77,10 @@ test("one click in the clinic page is traceable across services on the dashboard
     await expect(page.getByRole("row", { name: new RegExp(name) })).toHaveCount(0);
   }
 });
+
+test("Summarise with AI asks the agent and says which tools it used", async ({ page }) => {
+  await page.goto(CLINIC);
+  await page.getByRole("button", { name: "Summarise with AI" }).click();
+  await expect(page.locator("#summary")).toContainText(/\d+ patients on file/, { timeout: 30_000 });
+  await expect(page.locator("#summary")).toContainText("list_patients");
+});
