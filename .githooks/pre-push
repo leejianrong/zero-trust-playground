@@ -1,0 +1,3 @@
+#!/bin/sh
+# Fast gate, no cluster needed. Skip once with: git push --no-verify
+exec make test

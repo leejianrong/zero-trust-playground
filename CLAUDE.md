@@ -11,6 +11,10 @@ Slice V1 (SPIRE identity + Identity view) is in progress. Trust the code over th
 - `make up` / `make down`: create or delete cluster `ztp` with SPIRE
 - `make status`: pods and memory
 - `make echo`: build and deploy the V1 spike workloads
+- `make observer`: run the observer on :8765 (host process; reads the cluster via kubectl)
+- `make test`: no-infra tests, lint, type-check (the pre-push gate; `make hooks` installs it)
+- `make e2e`: Playwright against the live cluster (CI only by default)
+- Dashboard dev: `cd web && npm run dev` (proxies /events to the observer)
 
 Versions of every chart and image live in `versions.env`.
 

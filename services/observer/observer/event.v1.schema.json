@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "playground event v1",
+  "type": "object",
+  "required": ["v", "ts", "layer", "kind", "verdict"],
+  "additionalProperties": false,
+  "properties": {
+    "v": {"const": 1},
+    "id": {"type": "integer"},
+    "ts": {"type": "number"},
+    "layer": {"enum": ["identity", "mtls", "network", "secrets", "user", "runtime"]},
+    "kind": {"type": "string"},
+    "src": {"type": ["string", "null"]},
+    "dst": {"type": ["string", "null"]},
+    "verdict": {"enum": ["allow", "deny", "info"]},
+    "reason": {"type": ["string", "null"]},
+    "trace": {"type": ["string", "null"]},
+    "evidence": {"type": "object"}
+  }
+}
