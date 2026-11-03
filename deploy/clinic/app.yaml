@@ -1,0 +1,144 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: web, namespace: clinic}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: web, namespace: clinic}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: web}}
+  template:
+    metadata: {labels: {app: web}}
+    spec:
+      serviceAccountName: web
+      containers:
+        - name: app
+          image: ztp/clinic:dev
+          imagePullPolicy: Never
+          command: [uvicorn, "clinic.web:app", --host, "0.0.0.0", --port, "8080"]
+          ports: [{containerPort: 8080}]
+
+---
+apiVersion: v1
+kind: Service
+metadata: {name: web, namespace: clinic}
+spec:
+  selector: {app: web}
+  ports: [{port: 8080, targetPort: 8080}]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: records-api, namespace: clinic}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: records-api, namespace: clinic}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: records-api}}
+  template:
+    metadata: {labels: {app: records-api}}
+    spec:
+      serviceAccountName: records-api
+      containers:
+        - name: app
+          image: ztp/clinic:dev
+          imagePullPolicy: Never
+          command: [uvicorn, "clinic.records_api:app", --host, "0.0.0.0", --port, "8080"]
+          ports: [{containerPort: 8080}]
+          env:
+            - {name: DB_HOST, value: postgres.clinic.svc}
+            - name: DB_PASSWORD
+              valueFrom: {secretKeyRef: {name: db-static, key: password}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: records-api, namespace: clinic}
+spec:
+  selector: {app: records-api}
+  ports: [{port: 8080, targetPort: 8080}]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: billing, namespace: clinic}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: billing, namespace: clinic}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: billing}}
+  template:
+    metadata: {labels: {app: billing}}
+    spec:
+      serviceAccountName: billing
+      containers:
+        - name: app
+          image: ztp/clinic:dev
+          imagePullPolicy: Never
+          command: [uvicorn, "clinic.billing:app", --host, "0.0.0.0", --port, "8080"]
+          ports: [{containerPort: 8080}]
+
+---
+apiVersion: v1
+kind: Service
+metadata: {name: billing, namespace: clinic}
+spec:
+  selector: {app: billing}
+  ports: [{port: 8080, targetPort: 8080}]
+---
+# LABELLED THROWAWAY: one shared static password for the whole app. V5 removes it.
+apiVersion: v1
+kind: Secret
+metadata: {name: db-static, namespace: clinic}
+stringData: {password: clinic-static-pw}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: postgres-seed, namespace: clinic}
+data:
+  seed.sql: |
+    CREATE TABLE patients (id serial PRIMARY KEY, name text, dob date, diagnosis text);
+    INSERT INTO patients (name, dob, diagnosis) VALUES
+      ('Aisha Rahman', '1984-03-12', 'Type 2 diabetes'),
+      ('Ben Tan', '1991-07-30', 'Asthma'),
+      ('Chloe Lim', '1978-11-02', 'Hypertension'),
+      ('Dev Patel', '2001-01-19', 'Migraine'),
+      ('Eka Wijaya', '1966-09-25', 'Arthritis');
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: postgres, namespace: clinic}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: postgres, namespace: clinic}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: postgres}}
+  template:
+    metadata: {labels: {app: postgres}}
+    spec:
+      serviceAccountName: postgres
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          args: [-c, log_connections=on, -c, "log_line_prefix=%h "]
+          env:
+            - {name: POSTGRES_DB, value: clinic}
+            - {name: POSTGRES_USER, value: clinic}
+            - name: POSTGRES_PASSWORD
+              valueFrom: {secretKeyRef: {name: db-static, key: password}}
+          ports: [{containerPort: 5432}]
+          volumeMounts: [{name: seed, mountPath: /docker-entrypoint-initdb.d}]
+      volumes:
+        - name: seed
+          configMap: {name: postgres-seed}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: postgres, namespace: clinic}
+spec:
+  selector: {app: postgres}
+  ports: [{port: 5432, targetPort: 5432}]

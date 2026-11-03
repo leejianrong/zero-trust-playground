@@ -55,3 +55,11 @@ e2e: ## browser tests against the live cluster (needs make up && make echo)
 
 hooks: ## enable the pre-push hook
 	git config core.hooksPath .githooks
+
+.PHONY: clinic
+clinic: ## build and deploy the clinic app (web, records-api, billing, postgres)
+	docker build -q -t ztp/clinic:dev services/clinic
+	k3d image import ztp/clinic:dev -c $(CLUSTER_NAME)
+	kubectl --context $(CTX) apply -f deploy/clinic/app.yaml
+	kubectl --context $(CTX) -n clinic rollout restart deploy/web deploy/records-api deploy/billing
+	kubectl --context $(CTX) -n clinic rollout status deploy/postgres deploy/web deploy/records-api deploy/billing --timeout=180s
