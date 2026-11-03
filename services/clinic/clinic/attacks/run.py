@@ -125,6 +125,7 @@ def agent_prompt_injection(http):
 
 ATTACKS = {
     "read-postgres": read_postgres,
+    "postgres-from-billing": read_postgres,  # the same attack; the catalogue says to run it from the billing pod
     "no-identity-records": no_identity_records,
     "cross-namespace-billing": cross_namespace_billing,
     "mcp-no-identity": mcp_no_identity,

@@ -303,3 +303,22 @@ def test_a_connect_refusal_does_not_wait_for_deny_events():
     app = create_app(Store(), sources=(), exec_in=fake_exec(out), kube=fake_kube("off"), wait=count, net=NetUp)
     TestClient(app).post("/attacks/read-postgres/run")
     assert waits == []
+
+
+def test_an_attack_runs_from_the_pod_the_catalogue_names_and_defaults_to_the_attacker():
+    seen = []
+
+    async def exec_in(namespace, deploy, *cmd):
+        seen.append((namespace, deploy))
+        return attack_out("x", "succeeds")
+
+    app = create_app(Store(), sources=(), exec_in=exec_in, kube=fake_kube(), wait=no_wait, net=NoNet)
+    client = TestClient(app)
+    client.post("/attacks/read-postgres/run")
+    ev = client.post("/attacks/postgres-from-billing/run").json()
+    assert seen == [("attacker", "attacker"), ("clinic", "billing")] and ev["src"] == "billing"
+
+
+def test_the_catalogue_lists_where_each_attack_runs_from():
+    by_name = {a["name"]: a for a in api("").get("/attacks").json()}
+    assert by_name["postgres-from-billing"]["from"] == {"namespace": "clinic", "deploy": "billing"}

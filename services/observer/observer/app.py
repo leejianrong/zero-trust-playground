@@ -94,7 +94,8 @@ def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl
         attack = attacks.get(name)
         if not attack:
             raise HTTPException(404, f"unknown attack {name}")
-        out = await exec_in("attacker", "attacker", "python", "-m", "clinic.attacks.run", name)
+        origin = attack.get("from", {"namespace": "attacker", "deploy": "attacker"})
+        out = await exec_in(origin["namespace"], origin["deploy"], "python", "-m", "clinic.attacks.run", name)
         try:
             result = json.loads(out.strip().splitlines()[-1])
         except (IndexError, json.JSONDecodeError):
@@ -103,7 +104,7 @@ def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl
         outcome, trace = result["outcome"], result.get("trace")
         expected = layers.expected(attack, modes)
         extra = {"stopped_by": await stopped_by(trace, result["evidence"].get("phase"), attack["target"], modes)} if outcome == "blocked" else {}
-        return store.append(event("app", "attack_result", "allow" if outcome == "succeeds" else "deny", src="attacker",
+        return store.append(event("app", "attack_result", "allow" if outcome == "succeeds" else "deny", src=origin["deploy"],
                                   dst=attack["target"], trace=trace, attack=name, outcome=outcome, expected=expected,
                                   as_expected=outcome == expected, modes=modes, detail=result["evidence"], **extra))
 

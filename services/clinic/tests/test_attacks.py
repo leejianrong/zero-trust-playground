@@ -96,3 +96,10 @@ def test_a_blocked_attack_records_which_phase_failed():
 def test_an_exception_group_is_reported_as_its_first_real_error():
     ev = blocked_by(ExceptionGroup("unhandled errors in a TaskGroup", [httpx.ConnectError("refused")]))
     assert (ev["error"], ev["phase"]) == ("ConnectError", "connect")
+
+
+def test_postgres_from_billing_is_the_postgres_attack_run_from_another_pod():
+    assert ATTACKS["postgres-from-billing"] is ATTACKS["read-postgres"]
+    entry = next(a for a in CATALOG if a["name"] == "postgres-from-billing")
+    assert entry["from"] == {"namespace": "clinic", "deploy": "billing"}
+    assert entry["expected"]["rules"] == [{"when": {"network": "enforce"}, "outcome": "blocked"}]

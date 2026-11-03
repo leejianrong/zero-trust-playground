@@ -85,6 +85,8 @@ spec:
           imagePullPolicy: Never
           command: [python, -m, clinic.serve, "clinic.billing:app", --mtls]
           env:
+            # LABELLED, LOCALHOST-ONLY: the postgres-from-billing attack plays an attacker with code execution here.
+            - {name: ATTACK_LEAKED_DB_PASSWORD, value: clinic-static-pw}
             - {name: SPIFFE_ENDPOINT_SOCKET, value: "unix:///spiffe-workload-api/spire-agent.sock"}
           ports: [{containerPort: 8080}]
           volumeMounts: [{name: spiffe, mountPath: /spiffe-workload-api, readOnly: true}]

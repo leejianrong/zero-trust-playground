@@ -9,6 +9,27 @@
     "target": "postgres"
   },
   {
+    "name": "postgres-from-billing",
+    "title": "Read patient records from a compromised billing pod",
+    "description": "From inside the billing pod, as if an attacker had code execution there, log in to Postgres with the leaked static password and dump the patients table. Only records-api should be able to reach Postgres.",
+    "from": {
+      "namespace": "clinic",
+      "deploy": "billing"
+    },
+    "expected": {
+      "default": "succeeds",
+      "rules": [
+        {
+          "when": {
+            "network": "enforce"
+          },
+          "outcome": "blocked"
+        }
+      ]
+    },
+    "target": "postgres"
+  },
+  {
     "name": "no-identity-records",
     "title": "Call records-api with no identity",
     "description": "From the attacker pod, ask records-api for every patient without presenting any credential.",
