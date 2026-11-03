@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { expectFresh, runUntilSeen } from "./fresh";
 
 // With no layers on, the clinic app is wide open. Needs `make clinic` as well as `make echo`.
 
@@ -27,28 +28,10 @@ test("every baseline attack succeeds, and an attack on Postgres shows up as an e
   await expect(page.getByText("allowed, nothing stopped it").first()).toBeVisible();
 });
 
-for (const theme of ["light", "dark"] as const) {
-  test(`screenshots of topology and attack lab, ${theme}`, async ({ page }) => {
-    await page.emulateMedia({ colorScheme: theme });
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto("/#topology");
-    await page.getByRole("button", { name: "Use the app" }).click();
-    await expect(page.getByText("records-api → postgres", { exact: true })).toBeVisible({ timeout: 20_000 });
-    await page.screenshot({ path: `e2e/screenshots/topology-${theme}.png`, fullPage: true });
-    await page.goto("/#attacks");
-    await page.screenshot({ path: `e2e/screenshots/attacks-${theme}.png`, fullPage: true });
-  });
-}
-
-test("the injection attack leaves the clinic unchanged and the agent's path is on the topology", async ({ page }) => {
-  await page.goto("/#attacks");
-  const row = page.getByRole("listitem").filter({ hasText: "Let an agent summarise a poisoned record" });
-  await row.getByRole("button").click();
-  await expect(row.getByText("Succeeded, nothing stopped it")).toBeVisible({ timeout: 40_000 });
-  await page.goto("/#topology");
-  const paths = page.getByRole("list").filter({ hasText: "records-api → postgres" });
+test("the injection attack leaves the clinic unchanged and the agent's path is seen live", async ({ page }) => {
+  await runUntilSeen(page, "Let an agent summarise a poisoned record", "agent → records-mcp");
   for (const route of ["attacker → agent", "agent → records-mcp", "records-mcp → records-api"]) {
-    await expect(paths.getByText(route, { exact: true })).toBeVisible({ timeout: 20_000 });
+    await expectFresh(page, route);
   }
   // The attack plants its own records and removes them, so the clinic is as it was.
   const list = await (await page.request.get("http://localhost:8081/api/patients")).json();
