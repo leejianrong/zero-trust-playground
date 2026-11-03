@@ -40,13 +40,13 @@ def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl
 
     @app.get("/events")
     async def events(request: Request, since: int = 0, last_event_id: str | None = Header(None),
-                     follow: bool = True):
+                     follow: bool = True, trace: str | None = None):
         cursor = max(since, int(last_event_id or 0))
 
         async def stream():
             nonlocal cursor
             while True:
-                for ev in store.since(cursor):
+                for ev in store.since(cursor, trace=trace):
                     cursor = ev["id"]
                     yield f"id: {ev['id']}\ndata: {json.dumps(ev)}\n\n"
                 if not follow or await request.is_disconnected():

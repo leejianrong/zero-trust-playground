@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Riverside Clinic: patient records</title>
+<style>
+  :root { --bg:#f6f4ef; --card:#fff; --ink:#1c2420; --soft:#5d6a63; --rule:#d9d6cc; --brand:#1f6f54; --danger:#a8321f; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#121815; --card:#1a2420; --ink:#e8efe9; --soft:#9db0a5; --rule:#2c3b34; --brand:#5fc79f; --danger:#ff9b88; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui, sans-serif; }
+  main { max-width:900px; margin:0 auto; padding:2rem 1rem 4rem; display:grid; gap:1.5rem; }
+  h1 { margin:0; font-size:1.8rem; } h2 { margin:0 0 .75rem; font-size:1.1rem; }
+  .sub { margin:.2rem 0 0; color:var(--soft); }
+  section { background:var(--card); border:1px solid var(--rule); border-radius:12px; padding:1.25rem; }
+  table { width:100%; border-collapse:collapse; } th,td { text-align:left; padding:.55rem .5rem; border-bottom:1px solid var(--rule); } th { color:var(--soft); font-weight:600; font-size:.85rem; }
+  form { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:.75rem; align-items:end; }
+  label { display:grid; gap:.25rem; font-size:.85rem; color:var(--soft); }
+  input { font:inherit; color:var(--ink); background:var(--bg); border:1px solid var(--rule); border-radius:8px; padding:.45rem .6rem; }
+  button { font:inherit; font-weight:600; cursor:pointer; border-radius:8px; padding:.45rem .9rem; border:1px solid var(--rule); background:var(--card); color:var(--ink); }
+  button.primary { background:var(--brand); border-color:var(--brand); color:#fff; } button.danger { color:var(--danger); }
+  :focus-visible { outline:3px solid var(--brand); outline-offset:2px; }
+  #status { min-height:1.5rem; color:var(--soft); } #status.error { color:var(--danger); }
+  dialog { border:1px solid var(--rule); border-radius:12px; background:var(--card); color:var(--ink); padding:1.25rem; min-width:min(420px,92vw); }
+  dialog::backdrop { background:rgba(0,0,0,.4); }
+  .actions { display:flex; gap:.4rem; } .trace { font:.8rem ui-monospace, monospace; color:var(--soft); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Riverside Clinic</h1>
+    <p class="sub">Patient records. Everything here goes web → records-api → Postgres.</p>
+  </header>
+
+  <section aria-labelledby="add-h">
+    <h2 id="add-h">Add a patient</h2>
+    <form id="add">
+      <label>Name <input name="name" required maxlength="100" autocomplete="off"></label>
+      <label>Date of birth <input name="dob" type="date" required></label>
+      <label>Diagnosis <input name="diagnosis" maxlength="200" autocomplete="off"></label>
+      <button class="primary" type="submit">Add patient</button>
+    </form>
+  </section>
+
+  <section aria-labelledby="list-h">
+    <h2 id="list-h">Patients</h2>
+    <table>
+      <thead><tr><th>ID</th><th>Name</th><th>Born</th><th>Diagnosis</th><th>Amount due</th><th><span style="position:absolute;left:-9999px">Actions</span></th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <p id="status" role="status"></p>
+    <p class="trace">Trace id of your last change: <span id="trace">none yet</span></p>
+  </section>
+</main>
+
+<dialog id="edit" aria-labelledby="edit-h">
+  <form id="edit-form" method="dialog">
+    <h2 id="edit-h">Edit patient</h2>
+    <label>Name <input name="name" required maxlength="100"></label>
+    <label>Date of birth <input name="dob" type="date" required></label>
+    <label>Diagnosis <input name="diagnosis" maxlength="200"></label>
+    <div class="actions"><button class="primary" type="submit">Save changes</button><button type="button" id="cancel">Cancel</button></div>
+  </form>
+</dialog>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const status = (msg, error = false) => { $("#status").textContent = msg; $("#status").className = error ? "error" : ""; };
+
+async function api(method, path, body) {
+  const r = await fetch(path, { method, headers: body ? { "content-type": "application/json" } : {}, body: body && JSON.stringify(body) });
+  // Only changes set the trace: background lookups would overwrite the id of what the user just did.
+  if (method !== "GET") $("#trace").textContent = r.headers.get("x-trace-id") || "none";
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail?.[0]?.msg || (await r.text().catch(() => "")) || `Request failed (${r.status})`);
+  return r.status === 204 ? null : r.json();
+}
+const text = (s) => Object.assign(document.createElement("td"), { textContent: s });
+
+async function load() {
+  const patients = await api("GET", "/api/patients");
+  const rows = $("#rows"); rows.replaceChildren();
+  for (const p of patients) {
+    const tr = document.createElement("tr");
+    tr.append(text(p.id), text(p.name), text(p.dob), text(p.diagnosis));
+    const due = text("…"); tr.append(due);
+    api("GET", `/api/patients/${p.id}/invoice`).then((i) => (due.textContent = i.amount == null ? "none" : `$${i.amount.toFixed(2)}`)).catch(() => (due.textContent = "unavailable"));
+    const actions = document.createElement("td"); actions.className = "actions";
+    const edit = Object.assign(document.createElement("button"), { textContent: "Edit", ariaLabel: `Edit ${p.name}` });
+    edit.onclick = () => openEdit(p);
+    const del = Object.assign(document.createElement("button"), { textContent: "Delete", className: "danger", ariaLabel: `Delete ${p.name}` });
+    del.onclick = async () => { try { await api("DELETE", `/api/patients/${p.id}`); status(`Deleted ${p.name}.`); await load(); } catch (e) { status(e.message, true); } };
+    actions.append(edit, del); tr.append(actions); rows.append(tr);
+  }
+  if (!patients.length) status("No patients yet. Add one above.");
+}
+
+$("#add").onsubmit = async (e) => {
+  e.preventDefault();
+  const body = Object.fromEntries(new FormData(e.target));
+  try { const p = await api("POST", "/api/patients", body); status(`Added ${p.name}.`); e.target.reset(); await load(); } catch (err) { status(err.message, true); }
+};
+
+let editing = null;
+function openEdit(p) { editing = p; const f = $("#edit-form"); f.name.value = p.name; f.dob.value = p.dob; f.diagnosis.value = p.diagnosis; $("#edit").showModal(); }
+$("#cancel").onclick = () => $("#edit").close();
+$("#edit-form").onsubmit = async (e) => {
+  e.preventDefault();
+  const body = Object.fromEntries(new FormData(e.target));
+  try { const p = await api("PUT", `/api/patients/${editing.id}`, body); $("#edit").close(); status(`Saved ${p.name}.`); await load(); } catch (err) { status(err.message, true); }
+};
+
+load().catch((e) => status(e.message, true));
+</script>
+</body>
+</html>

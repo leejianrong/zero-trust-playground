@@ -143,3 +143,12 @@ def test_using_the_app_needs_a_200_from_web():
 
 def test_a_request_with_no_caller_header_is_the_user():
     assert from_log_line(json.dumps({**HTTP, "caller": "unknown"}))["src"] == "user"
+
+
+def test_events_can_be_filtered_to_one_trace_even_past_the_page_size():
+    store = Store()
+    for i in range(600):
+        store.append(event("app", "http_request", trace="noise"))
+    store.append(event("app", "http_request", trace="wanted"))
+    body = TestClient(create_app(store, sources=())).get("/events?follow=false&trace=wanted").text
+    assert body.count("data:") == 1

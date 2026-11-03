@@ -23,6 +23,7 @@ def instrument(app: FastAPI, service: str) -> FastAPI:
         trace = request.headers.get("x-trace-id") or uuid.uuid4().hex[:12]
         trace_var.set(trace)
         response = await call_next(request)
+        response.headers["x-trace-id"] = trace
         if request.url.path != "/healthz":
             emit(event="http", service=service, caller=request.headers.get("x-caller", "unknown"),
                  method=request.method, route=request.url.path, status=response.status_code, trace=trace)

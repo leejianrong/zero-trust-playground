@@ -6,7 +6,7 @@ CTX := k3d-$(CLUSTER_NAME)
 .DEFAULT_GOAL := help
 .PHONY: help
 help: ## list targets
-	@grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-8s %s\n", $$1, $$2}'
+	@grep -hE '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-8s %s\n", $$1, $$2}'
 
 .PHONY: up down status spire clean-check
 
@@ -57,7 +57,7 @@ e2e: ## browser tests against the live cluster (needs make up && make echo)
 hooks: ## enable the pre-push hook
 	git config core.hooksPath .githooks
 
-.PHONY: clinic
+.PHONY: clinic web
 clinic: ## build and deploy the clinic app (web, records-api, billing, postgres)
 	docker build -q -t ztp/clinic:dev services/clinic
 	k3d image import ztp/clinic:dev -c $(CLUSTER_NAME)
@@ -66,3 +66,6 @@ clinic: ## build and deploy the clinic app (web, records-api, billing, postgres)
 	kubectl --context $(CTX) -n attacker rollout restart deploy/attacker
 	kubectl --context $(CTX) -n clinic rollout status deploy/postgres deploy/web deploy/records-api deploy/billing --timeout=180s
 	kubectl --context $(CTX) -n attacker rollout status deploy/attacker --timeout=120s
+
+web: ## open the clinic app at http://localhost:8081 (port-forward, Ctrl-C to stop)
+	kubectl --context $(CTX) -n clinic port-forward svc/web 8081:8080
