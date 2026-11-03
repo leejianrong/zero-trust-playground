@@ -51,7 +51,11 @@ A certificate that is presented but not signed by the trust bundle (a forged ide
 
 ## Consequences
 
-- The V3 spike must prove three things first: a hot-swapped context on uvicorn, the caller lookup by client address, and a rotation across a live connection. If the lookup proves unreliable, fall back to Hypercorn.
+- The spike (AAL-50) proved the design on uvicorn 0.54.0, so the Hypercorn fallback is not needed. The code is `clinic/mtls.py`. Measured in a no-cluster test and live on k3d with real SPIRE SVIDs (2 minute TTL): 17 calls across 4 server certificates, no errors, the right caller every time.
+- Rotation reaches new connections only. A connection already open keeps the certificate it started with. That is fine here because every client opens a fresh connection per call, and certificates last 2 minutes.
+- The hot swap runs in the SNI callback, and clients send SNI only when they dial a DNS name. Services must therefore call each other by service name, never by IP.
+- SPIRE certificates hold a SPIFFE ID and no DNS name, so ordinary hostname checks fail with `Hostname mismatch`. Clients turn hostname checking off and compare the server's SPIFFE ID themselves (`peer_id`), which is the SPIFFE model: authorise the ID, not the address.
+- A certificate from the wrong CA fails the handshake, but under TLS 1.3 the client sees it on its first request as a dropped connection, not as an error while connecting. The attack runner must treat any transport error as "refused at the handshake".
 - `enforce` still leaves the plain port open and answering with refusals. V4 closes it with network policy, which is a good lesson in why layers overlap.
 - Postgres traffic is outside V3. The network layer (V4) and dynamic credentials (V5) cover it.
 - mTLS must not stop the prompt-injection attack, because the agent and the user path are both legitimate. The attack matrix records that, and it is the reason V6b exists.
