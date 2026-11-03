@@ -46,7 +46,8 @@ echo: ## build and deploy the V1 spike workloads
 observer: ## run the observer on :8765 against the cluster
 	cd services/observer && uv run uvicorn --factory observer.app:create_app --port 8765
 
-test: ## fast no-infra tests, lint and type-check
+test: ## fast no-infra tests, lint, type-check and docs checks
+	python3 scripts/check_docs_commands.py
 	cd services/observer && uv run ruff check . && uv run pytest -q
 	cd services/clinic && uv run ruff check . && uv run pytest -q
 	cd web && npm run check && npm test
@@ -72,7 +73,7 @@ clinic: ## build and deploy the clinic app (web, records-api, billing, postgres)
 web: ## open the clinic app at http://localhost:8081 (port-forward, Ctrl-C to stop)
 	kubectl --context $(CTX) -n clinic port-forward svc/web 8081:8080
 
-.PHONY: headlamp headlamp-token headlamp-ui
+.PHONY: headlamp headlamp-token headlamp-ui docs docs-build
 headlamp: ## install Headlamp (cluster dashboard) with a read-only login
 	@helm repo add headlamp https://kubernetes-sigs.github.io/headlamp/ >/dev/null 2>&1 || true
 	@helm repo update headlamp >/dev/null
@@ -85,3 +86,14 @@ headlamp-token: ## print a login token for Headlamp (ROLE=admin for the cluster-
 
 headlamp-ui: ## open Headlamp at http://localhost:4466 (port-forward, Ctrl-C to stop)
 	kubectl --context $(CTX) -n headlamp port-forward svc/headlamp 4466:80
+
+DOCS_PY := .docs-venv/bin/python
+$(DOCS_PY):
+	uv venv .docs-venv --python 3.12 --allow-existing
+	uv pip install zensical --python $(DOCS_PY)
+
+docs: $(DOCS_PY) ## serve the tutorial at http://localhost:8000
+	.docs-venv/bin/zensical serve
+
+docs-build: $(DOCS_PY) ## build the tutorial (strict) into site/
+	.docs-venv/bin/zensical build --clean --strict
