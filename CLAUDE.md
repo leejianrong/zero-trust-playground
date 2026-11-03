@@ -4,7 +4,7 @@ A k3d cluster plus a toy clinic app and a dashboard, for learning the Layered Ze
 
 ## Status
 
-Slices V1 (SPIRE identity, Identity view) and V2 (unprotected clinic app, attacker, Topology and Attack lab) are built. V3 is next. Trust the code over the docs where they disagree, and fix the doc. Board: Pandan `AAL` (epics AAL-E6 to E13).
+Slices V1 (SPIRE identity), V2 (unprotected clinic app, attacker, Topology and Attack lab) and V2b (MCP server, simulated agent, Headlamp, Explore view, docs site) are built. V3 is next. Trust the code over the docs where they disagree, and fix the doc. Board: Pandan `AAL` (epics AAL-E6 to E13).
 
 ## Commands
 
@@ -14,6 +14,7 @@ Slices V1 (SPIRE identity, Identity view) and V2 (unprotected clinic app, attack
 - `make clinic`: build and deploy web, records-api, billing, postgres and the attacker pod
 - `make web`: port-forward the clinic app to http://localhost:8081 (a real CRUD page: list, add, edit, delete patients)
 - `make headlamp` / `make headlamp-ui` / `make headlamp-token`: the cluster dashboard (read-only token; `ROLE=admin` for the contrast). Never print or log the token.
+- `make docs` / `make docs-build`: the Zensical tutorial in `docs/tutorial/` (a page per slice ships with the slice; `scripts/check_docs_commands.py` fails on unknown make targets)
 - `make observer`: run the observer on :8765 (host process; reads the cluster via kubectl)
 - `make test`: no-infra tests, lint, type-check (the pre-push gate; `make hooks` installs it)
 - `make e2e`: Playwright against the live cluster (CI only by default)

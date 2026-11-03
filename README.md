@@ -6,7 +6,7 @@ The dashboard is the point. It shows identities rotating, requests being allowed
 
 > **The concepts transfer to the real pattern. The manifests don't.** This uses upstream charts on k3d, not the Red Hat builds on OpenShift with GitOps. Several configurations are deliberately weak when a layer is off. Run it on localhost only.
 
-Status: slices V1 (workload identity) and V2 (the unprotected clinic app and its first attacks) are built; the rest follow in order. The plan is in [PLAN.md](PLAN.md), the build order in [SLICES.md](SLICES.md), and the reasons in [docs/adr/](docs/adr/).
+Status: slices V1 (workload identity) and V2 (the unprotected clinic app and its first attacks) are built; the rest follow in order. The tutorial is published at <https://leejianrong.github.io/zero-trust-playground/> (or run `make docs`). The plan is in [PLAN.md](PLAN.md), the build order in [SLICES.md](SLICES.md), and the reasons in [docs/adr/](docs/adr/).
 
 ## Quick start
 

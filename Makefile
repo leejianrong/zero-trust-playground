@@ -52,7 +52,7 @@ test: ## fast no-infra tests, lint, type-check and docs checks
 	cd services/clinic && uv run ruff check . && uv run pytest -q
 	cd web && npm run check && npm test
 
-e2e: ## browser tests against the live cluster (needs make up && make echo)
+e2e: ## browser tests against the live cluster (needs make up, echo, clinic and headlamp)
 	cd web && npx playwright test
 
 hooks: ## enable the pre-push hook
