@@ -4,7 +4,7 @@ A k3d cluster plus a toy clinic app and a dashboard, for learning the Layered Ze
 
 ## Status
 
-Slices V1 (SPIRE identity), V2 (unprotected clinic app and attacker; attacks run with `make attack`) and V2b (MCP server, simulated agent, Headlamp, Explore view, docs site) are built. V3 is next. Trust the code over the docs where they disagree, and fix the doc. Board: Pandan `AAL` (epics AAL-E6 to E13).
+Slices V1 (SPIRE identity), V2 (unprotected clinic app and attacker; attacks run with `make attack`) and V2b (MCP server, simulated agent, Headlamp, Explore view, docs site) are built. V3 (mTLS layers, layer modes, Layers and Architecture views) is built. V4 (network policy) is next. Trust the code over the docs where they disagree, and fix the doc. Board: Pandan `AAL` (epics AAL-E6 to E13).
 
 ## Commands
 

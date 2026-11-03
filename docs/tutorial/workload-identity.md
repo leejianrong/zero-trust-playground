@@ -59,5 +59,5 @@ The cards return to **Identity valid** after the next issue.
 
 ## Next steps
 
-- [The open clinic](the-open-clinic.md) deploys the real app. It does not use these identities yet, and that is the point.
+- [The open clinic](the-open-clinic.md) deploys the real app. It starts with no layers on, and [Turn on mutual TLS](layers-and-mtls.md) later puts these identities to work.
 - [Layered zero trust](concepts/layered-zero-trust.md) explains where identity fits among the layers.
