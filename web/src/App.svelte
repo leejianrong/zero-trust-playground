@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import Architecture from "./lib/Architecture.svelte";
   import Explore from "./lib/Explore.svelte";
   import Layers from "./lib/Layers.svelte";
   import { reduce, type Cards, type Ev } from "./lib/identity";
@@ -8,6 +9,7 @@
   const VIEWS = [
     { id: "explore", label: "Explore", blurb: "Every tool in the playground, what it is for, and whether it is running." },
     { id: "identity", label: "Identity", blurb: "Every workload gets a short-lived SPIFFE identity from SPIRE and swaps it for a fresh one before it runs out." },
+    { id: "architecture", label: "Architecture", blurb: "The clinic's call paths and the layers around them. It follows the switches on the Layers view." },
     { id: "layers", label: "Layers", blurb: "Switch each layer off, audit or enforce, then run the attacks again to see what changes." },
   ] as const;
   type ViewId = (typeof VIEWS)[number]["id"];
@@ -90,6 +92,8 @@
         {/each}
       </div>
     {/if}
+  {:else if view === "architecture"}
+    <Architecture />
   {:else if view === "layers"}
     <Layers />
   {/if}
