@@ -41,6 +41,10 @@ None. Round 1 closed on 2026-11-03.
 | Q29 | Browser access to web | ASSUMED | Plain HTTP until the user layer in V6 | ADR-0010 |
 | Q30 | Injection attack trigger | ASSUMED | Through the clinic page's AI summary, the user's own path. mTLS must not stop it | SLICES V3 |
 | Q31 | Expired-SVID replay attack | ASSUMED | Replaced by a forged-identity attack | SLICES V3 |
+| Q32 | Ingress only, or ingress and egress | ASSUMED | Ingress only: it stops every attack in the catalogue and avoids having to allow DNS and the API server. The spike (AAL-56) confirms or overturns it | ADR-0011 |
+| Q33 | How a network drop is attributed | ASSUMED | A blocked attack with a dropped connection, while network is enforced, is reported as `network (inferred)`. There is no log line to point to | SLICES V4 |
+| Q34 | Compromised pod inside the clinic | ASSUMED | An attack can run from the billing pod, with the leaked password supplied the way the attacker pod gets it | SLICES V4 |
+| Q35 | Policy set source of truth | ASSUMED | One edge list in code generates the policies, and a test ties it to the authz allow-list | SLICES V4 |
 | Q18 | SPIRE federation | DEFERRED | Later playground | n/a |
 | Q19 | Offline operation | DEFERRED | First run needs internet; optional `k3d image import` pre-pull | ADR-0001 |
 
