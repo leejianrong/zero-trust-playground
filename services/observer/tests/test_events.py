@@ -169,3 +169,48 @@ def test_the_real_probe_calls_a_closed_port_down():
 
     from observer.links import probe
     assert asyncio.run(probe("http://127.0.0.1:9")) is False
+
+
+def authz(verdict, caller="spiffe://playground.local/ns/clinic/sa/web", reason=None):
+    return json.dumps({"event": "authz", "service": "records-api", "mode": "enforce", "caller": caller,
+                       "method": "GET", "route": "/patients", "listener": "mtls", "verdict": verdict,
+                       "reason": reason, "trace": "t1"})
+
+
+def test_authorisation_decisions_become_valid_mtls_events():
+    for verdict, expected in (("allow", "allow"), ("deny", "deny"), ("would_deny", "info")):
+        ev = from_log_line(authz(verdict, reason=None if verdict == "allow" else "no client certificate presented"))
+        jsonschema.validate(ev, SCHEMA)
+        assert (ev["layer"], ev["kind"], ev["verdict"], ev["evidence"]["decision"]) == ("mtls", "authorisation", expected, verdict)
+
+
+def test_a_caller_with_no_identity_is_shown_as_anonymous():
+    assert from_log_line(authz("deny", caller=None, reason="no client certificate presented"))["src"] == "anonymous"
+
+
+def test_a_long_history_replays_without_pausing_between_pages(monkeypatch):
+    """The dashboard opens a fresh stream on every load, so catching up must not wait per page."""
+    import asyncio
+
+    import observer.app as app_module
+
+    pauses = []
+    real_sleep = asyncio.sleep
+
+    async def counting_sleep(seconds):
+        pauses.append(seconds)
+        await real_sleep(0)
+
+    monkeypatch.setattr(app_module.asyncio, "sleep", counting_sleep)
+    store = Store()
+    for _ in range(3200):
+        store.append(event("identity", "k"))
+    client = TestClient(create_app(store, sources=()))
+    last = 0
+    with client.stream("GET", "/events") as stream:
+        for line in stream.iter_lines():
+            if line.startswith("id: "):
+                last = int(line[4:])
+            if last == 3200:
+                break
+    assert last == 3200 and len(pauses) <= 1

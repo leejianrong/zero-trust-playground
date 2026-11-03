@@ -12,6 +12,7 @@ from . import adapters, layers, links
 from .normalize import event
 from .store import Store
 
+PAGE = 500  # events per store read; matches Store.since's default limit
 CATALOG = Path(__file__).resolve().parents[2] / "clinic/clinic/attacks/catalog.json"
 
 
@@ -56,10 +57,15 @@ def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl
         async def stream():
             nonlocal cursor
             while True:
-                for ev in store.since(cursor, trace=trace):
+                page = store.since(cursor, trace=trace)
+                for ev in page:
                     cursor = ev["id"]
                     yield f"id: {ev['id']}\ndata: {json.dumps(ev)}\n\n"
-                if not follow or await request.is_disconnected():
+                if await request.is_disconnected():
+                    return
+                if len(page) == PAGE:  # a full page means more history is waiting
+                    continue
+                if not follow:
                     return
                 await asyncio.sleep(0.5)
 

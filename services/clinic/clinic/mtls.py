@@ -48,7 +48,10 @@ class Peers:
         return self._by_addr.get(tuple(scope["client"])) if scope.get("client") else None
 
 
-def protocol_class(peers: Peers) -> type[H11Protocol]:
+PEERS = Peers()
+
+
+def protocol_class(peers: Peers = PEERS) -> type[H11Protocol]:
     class PeerProtocol(H11Protocol):
         def connection_made(self, transport) -> None:  # type: ignore[override]
             super().connection_made(transport)

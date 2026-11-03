@@ -16,7 +16,7 @@ spec:
         - name: app
           image: ztp/clinic:dev
           imagePullPolicy: Never
-          command: [uvicorn, "clinic.web:app", --host, "0.0.0.0", --port, "8080"]
+          command: [python, -m, clinic.serve, "clinic.web:app"]
           env:
             - {name: SPIFFE_ENDPOINT_SOCKET, value: "unix:///spiffe-workload-api/spire-agent.sock"}
           ports: [{containerPort: 8080}]
@@ -48,7 +48,7 @@ spec:
         - name: app
           image: ztp/clinic:dev
           imagePullPolicy: Never
-          command: [uvicorn, "clinic.records_api:app", --host, "0.0.0.0", --port, "8080"]
+          command: [python, -m, clinic.serve, "clinic.records_api:app", --mtls]
           ports: [{containerPort: 8080}]
           env:
             - {name: SPIFFE_ENDPOINT_SOCKET, value: "unix:///spiffe-workload-api/spire-agent.sock"}
@@ -63,7 +63,7 @@ kind: Service
 metadata: {name: records-api, namespace: clinic}
 spec:
   selector: {app: records-api}
-  ports: [{port: 8080, targetPort: 8080}]
+  ports: [{name: http, port: 8080, targetPort: 8080}, {name: mtls, port: 8443, targetPort: 8443}]
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -83,7 +83,7 @@ spec:
         - name: app
           image: ztp/clinic:dev
           imagePullPolicy: Never
-          command: [uvicorn, "clinic.billing:app", --host, "0.0.0.0", --port, "8080"]
+          command: [python, -m, clinic.serve, "clinic.billing:app", --mtls]
           env:
             - {name: SPIFFE_ENDPOINT_SOCKET, value: "unix:///spiffe-workload-api/spire-agent.sock"}
           ports: [{containerPort: 8080}]
@@ -95,7 +95,7 @@ kind: Service
 metadata: {name: billing, namespace: clinic}
 spec:
   selector: {app: billing}
-  ports: [{port: 8080, targetPort: 8080}]
+  ports: [{name: http, port: 8080, targetPort: 8080}, {name: mtls, port: 8443, targetPort: 8443}]
 ---
 # LABELLED THROWAWAY: one shared static password for the whole app. V5 removes it.
 apiVersion: v1
@@ -170,7 +170,7 @@ spec:
         - name: app
           image: ztp/clinic:dev
           imagePullPolicy: Never
-          command: [uvicorn, "clinic.records_mcp:app", --host, "0.0.0.0", --port, "8080"]
+          command: [python, -m, clinic.serve, "clinic.records_mcp:app", --mtls]
           env:
             - {name: SPIFFE_ENDPOINT_SOCKET, value: "unix:///spiffe-workload-api/spire-agent.sock"}
           ports: [{containerPort: 8080}]
@@ -182,4 +182,4 @@ kind: Service
 metadata: {name: records-mcp, namespace: clinic}
 spec:
   selector: {app: records-mcp}
-  ports: [{port: 8080, targetPort: 8080}]
+  ports: [{name: http, port: 8080, targetPort: 8080}, {name: mtls, port: 8443, targetPort: 8443}]

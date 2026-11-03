@@ -55,3 +55,11 @@ async def test_a_list_result_comes_back_as_a_list_of_records_even_with_several_i
     async with Client(records_mcp.mcp) as c:
         result = await c.call_tool("list_patients")
     assert [p["name"] for p in data_of(result)] == ["Aisha", "Ben"]
+
+
+def test_the_mcp_door_has_the_guard_in_front_of_it():
+    """The MCP server is not built by instrument(), so it must be guarded explicitly."""
+    from clinic.guard import Guard
+    from clinic.records_mcp import app
+
+    assert any(m.cls is Guard for m in app.user_middleware)

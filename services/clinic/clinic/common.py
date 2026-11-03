@@ -18,6 +18,9 @@ def emit(**fields):
     print(json.dumps(fields), file=sys.stdout, flush=True)
 
 
+_runtime: dict = {}
+
+
 def start_background(service: str):
     """Start following the layer modes and fetching this workload's identity.
 
@@ -29,11 +32,16 @@ def start_background(service: str):
     identity = Identity(service)
     if os.environ.get("SPIFFE_ENDPOINT_SOCKET"):
         identity.start()
+    _runtime.update(modes=modes, identity=identity)
     return modes, identity
 
 
 def instrument(app: FastAPI, service: str) -> FastAPI:
+    from clinic.guard import Guard
+
     modes, _identity = start_background(service)
+    # Added before the logging middleware below, so it sits inside it and refusals are logged too.
+    app.add_middleware(Guard, service=service, modes=modes)
 
     @app.middleware("http")
     async def trace_and_log(request: Request, call_next):
@@ -53,9 +61,38 @@ def instrument(app: FastAPI, service: str) -> FastAPI:
     return app
 
 
+def _mesh_material():
+    """This workload's SVID, when the identity layer is on and SPIRE has issued one."""
+    modes, identity = _runtime.get("modes"), _runtime.get("identity")
+    if modes and identity and modes.get("identity") != "off":
+        return identity.material()
+    return None
+
+
+def secure(url: str) -> str:
+    """Services listen on 8080 (plain) and 8443 (mTLS). This points a cluster URL at the mTLS port."""
+    if url.startswith("http://") and ".svc" in url and ":8080" in url:
+        return url.replace("http://", "https://", 1).replace(":8080", ":8443", 1)
+    return url
+
+
+class _Mesh(httpx.Client):
+    def build_request(self, method, url, **kwargs):
+        url = str(url)
+        return super().build_request(method, secure(url) if self._material else url, **kwargs)
+
+
 def client(service: str) -> httpx.Client:
-    """Outbound client that passes the current trace id and names the calling service."""
+    """Outbound client that passes the current trace id and names the calling service.
+
+    With the identity layer on it presents this workload's SVID over mTLS. The x-caller header
+    stays for the dashboard, but the server trusts only the certificate."""
+    from clinic.mtls import client_context
+
     headers = {"x-caller": service}
     if trace := trace_var.get():
         headers["x-trace-id"] = trace
-    return httpx.Client(headers=headers, timeout=5)
+    material = _mesh_material()
+    c = _Mesh(headers=headers, timeout=5, verify=client_context(material) if material else True)
+    c._material = material
+    return c

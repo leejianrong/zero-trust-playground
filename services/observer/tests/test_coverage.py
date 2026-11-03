@@ -8,13 +8,13 @@ DEPLOY = Path(__file__).resolve().parents[3] / "deploy"
 
 
 def http_services() -> set[tuple[str, str]]:
-    """Every deployed workload that runs one of the clinic FastAPI/MCP apps and so logs HTTP events."""
+    """Every deployed workload that is launched by clinic.serve and so logs HTTP events."""
     found = set()
     for manifest in [DEPLOY / "clinic/app.yaml", DEPLOY / "agent.yaml"]:
         for doc in yaml.safe_load_all(manifest.read_text()):
             if doc and doc["kind"] == "Deployment":
                 command = doc["spec"]["template"]["spec"]["containers"][0].get("command", [])
-                if command[:1] == ["uvicorn"]:
+                if command[:3] == ["python", "-m", "clinic.serve"]:
                     found.add((doc["metadata"]["namespace"], doc["metadata"]["name"]))
     return found
 

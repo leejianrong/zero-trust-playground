@@ -59,3 +59,7 @@ A certificate that is presented but not signed by the trust bundle (a forged ide
 - `enforce` still leaves the plain port open and answering with refusals. V4 closes it with network policy, which is a good lesson in why layers overlap.
 - Postgres traffic is outside V3. The network layer (V4) and dynamic credentials (V5) cover it.
 - mTLS must not stop the prompt-injection attack, because the agent and the user path are both legitimate. The attack matrix records that, and it is the reason V6b exists.
+- Built in AAL-27. Each pod runs `python -m clinic.serve`, with the plain listener on 8080 and the mTLS listener on 8443. The mTLS listener runs with `lifespan="off"`, because the MCP session manager can only start once per app. The `Guard` middleware is added to the MCP app by hand, since that app is not built by `instrument()`. A test checks that it is there. Without it, `enforce` left the MCP door open.
+- Clients check that the server's certificate chains to the SPIRE bundle, but not which workload it is. Any workload in the trust domain could answer as `records-api`. Checking the expected SPIFFE ID per call is a later hardening step, and `peer_id` is ready for it.
+- The `x-caller` header is still sent for the dashboard and is still unauthenticated. Only the certificate decides.
+- Measured under `enforce`: web add, edit, invoice and delete all work, and the web → agent → MCP → records-api chain works. 667 requests across 3 rotations of the `records-api` certificate had no errors.
