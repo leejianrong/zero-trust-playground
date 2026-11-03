@@ -16,10 +16,12 @@ nav = [
     { "The open clinic" = "the-open-clinic.md" },
     { "Agents and MCP" = "agents-and-mcp.md" },
     { "Turn on mutual TLS" = "layers-and-mtls.md" },
+    { "Turn on the network layer" = "the-network-layer.md" },
   ] },
   { "How-to guides" = [
     { "Read the cluster with Headlamp" = "how-to/read-the-cluster-with-headlamp.md" },
     { "Break the mTLS layer" = "how-to/break-the-mtls-layer.md" },
+    { "Break the network layer" = "how-to/break-the-network-layer.md" },
   ] },
   { "Concepts" = [
     { "Layered zero trust" = "concepts/layered-zero-trust.md" },
@@ -28,6 +30,7 @@ nav = [
     { "Make targets" = "reference/make-targets.md" },
     { "Observer API" = "reference/observer-api.md" },
     { "Attacks" = "reference/attacks.md" },
+    { "Network policies" = "reference/network-policies.md" },
   ] },
 ]
 

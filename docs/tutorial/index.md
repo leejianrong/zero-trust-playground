@@ -15,11 +15,12 @@ It follows the [Layered Zero Trust validated pattern](https://validatedpatterns.
 | The cluster as an operator | Headlamp on port 4466 | [Read the cluster with Headlamp](how-to/read-the-cluster-with-headlamp.md) |
 | Each workload's identity, rotating | our dashboard on port 5173 | [Get started](get-started.md) |
 | Layers switched off, audit and enforce | the Layers and Architecture views on port 5173 | [Turn on mutual TLS](layers-and-mtls.md) |
+| Network policies applied, and a pod refused | the command line and the Layers view | [Turn on the network layer](the-network-layer.md) |
 | An AI agent using the app | the command line (`make attack`) | [Agents and MCP](agents-and-mcp.md) |
 
 ## Where the playground is today
 
-Slices V1, V2, V2b and V3 are built. Every workload has an identity, there is a real app, and with no layers on **every attack succeeds**. Switch on identity and mutual TLS, and three of the six attacks are blocked. The rest need network policy, Vault, Keycloak and agent scopes, which arrive next.
+Slices V1, V2, V2b, V3 and V4 are built. Every workload has an identity, there is a real app, and with no layers on **every attack succeeds**. Switch on identity and mutual TLS, and three of the seven attacks are blocked. Switch on the network layer and the two Postgres attacks are stopped too, along with the three that mTLS stops. The rest need Vault, Keycloak and agent scopes, which arrive next.
 
 ## What you need
 

@@ -94,7 +94,7 @@ def diff_policies(old: dict, new: dict, origin: str):
         if kind:
             ns, name = key
             yield event("network", kind, src=origin, dst=f"{ns}/{name}", origin=origin, namespace=ns, name=name,
-                        reason=f"{name} {kind.removeprefix('policy_')} by {origin}")
+                        reason=f"{name} {kind.removeprefix('policy_')} {'by the controller' if origin == 'controller' else 'outside the controller'}")
 
 
 class Watch:

@@ -342,6 +342,12 @@ def test_policy_diff_reports_added_changed_and_removed_with_valid_events():
                    ("policy_removed", "clinic/c", "out-of-band")]
 
 
+def test_the_reason_reads_as_a_sentence():
+    by = {e["evidence"]["origin"]: e["reason"] for o in ("controller", "out-of-band")
+          for e in network.diff_policies(specs(a=1), {}, o)}
+    assert by == {"controller": "a removed by the controller", "out-of-band": "a removed outside the controller"}
+
+
 def test_an_unchanged_policy_list_reports_nothing():
     assert list(network.diff_policies(specs(a=1), specs(a=1), "controller")) == []
 
