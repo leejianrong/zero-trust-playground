@@ -39,6 +39,7 @@ test("add, edit and delete a patient through the clinic page", async ({ page }) 
 
 test("a bad entry is refused with a reason, and nothing is saved", async ({ page }) => {
   await page.goto(CLINIC);
+  await expect(page.getByRole("row", { name: /Aisha Rahman/ })).toBeVisible(); // rows load asynchronously
   const before = await page.getByRole("row").count();
   // The browser caps the name at 100 characters. Lift that cap to prove the server enforces it too.
   await page.evaluate(() => document.querySelector("input[name=name]")!.removeAttribute("maxlength"));
@@ -52,6 +53,7 @@ test("a bad entry is refused with a reason, and nothing is saved", async ({ page
 test("one click in the clinic page is traceable across services on the dashboard", async ({ page, request }) => {
   const name = `Traced ${Date.now()}`;
   await page.goto(CLINIC);
+  try {
   await page.getByLabel("Name").first().fill(name);
   await page.getByLabel("Date of birth").first().fill("1980-02-02");
   await page.getByRole("button", { name: "Add patient" }).click();
@@ -66,6 +68,12 @@ test("one click in the clinic page is traceable across services on the dashboard
     expect(hops).toEqual(expect.arrayContaining(["user → web", "web → records-api"]));
   }).toPass({ timeout: 20_000 });
 
-  await page.getByRole("button", { name: `Delete ${name}` }).click();
-  await expect(page.getByRole("status").first()).toHaveText(`Deleted ${name}.`);
+  } finally {
+    // Leave the database as we found it, even when an assertion above failed.
+    await page.reload();
+    await expect(page.getByRole("row", { name: /Aisha Rahman/ })).toBeVisible();
+    const del = page.getByRole("button", { name: `Delete ${name}` });
+    if (await del.count()) await del.click();
+    await expect(page.getByRole("row", { name: new RegExp(name) })).toHaveCount(0);
+  }
 });

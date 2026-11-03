@@ -6,7 +6,7 @@ CTX := k3d-$(CLUSTER_NAME)
 .DEFAULT_GOAL := help
 .PHONY: help
 help: ## list targets
-	@grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-8s %s\n", $$1, $$2}'
+	@grep -hE '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-8s %s\n", $$1, $$2}'
 
 .PHONY: up down status spire clean-check
 
