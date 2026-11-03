@@ -1,9 +1,11 @@
+import asyncio
 import json
 from pathlib import Path
 
 import jsonschema
 from fastapi.testclient import TestClient
 
+from observer import network
 from observer.app import create_app
 from observer.normalize import diff_entries, entry_key, event, from_log_line, from_postgres_line
 from observer.store import Store
@@ -121,6 +123,7 @@ async def no_wait(_):
 class NoNet:
     applied = staticmethod(lambda: False)
     protects = staticmethod(lambda app: False)
+    listing = staticmethod(dict)
 
 
 def api(output, store=None, mtls="off"):
@@ -322,3 +325,65 @@ def test_an_attack_runs_from_the_pod_the_catalogue_names_and_defaults_to_the_att
 def test_the_catalogue_lists_where_each_attack_runs_from():
     by_name = {a["name"]: a for a in api("").get("/attacks").json()}
     assert by_name["postgres-from-billing"]["from"] == {"namespace": "clinic", "deploy": "billing"}
+
+
+def specs(**named):
+    return {("clinic", name): {"podSelector": {"matchLabels": {"app": name}}, "n": n} for name, n in named.items()}
+
+
+def test_policy_diff_reports_added_changed_and_removed_with_valid_events():
+    old = specs(a=1, b=1, c=1)
+    new = specs(a=1, b=2, d=1)
+    evs = list(network.diff_policies(old, new, "out-of-band"))
+    for ev in evs:
+        jsonschema.validate(ev, SCHEMA)
+    got = sorted((e["kind"], e["dst"], e["evidence"]["origin"]) for e in evs)
+    assert got == [("policy_added", "clinic/d", "out-of-band"), ("policy_changed", "clinic/b", "out-of-band"),
+                   ("policy_removed", "clinic/c", "out-of-band")]
+
+
+def test_an_unchanged_policy_list_reports_nothing():
+    assert list(network.diff_policies(specs(a=1), specs(a=1), "controller")) == []
+
+
+def test_the_watch_baselines_silently_then_reports_what_changed_since():
+    state, seen = {"now": specs(a=1, b=1)}, []
+    watch = network.Watch(seen.append, lambda: state["now"])
+    asyncio.run(watch.sync())
+    assert seen == []
+    state["now"] = specs(a=1)  # someone ran kubectl delete networkpolicy b
+    asyncio.run(watch.sync())
+    assert [(e["kind"], e["dst"], e["evidence"]["origin"]) for e in seen] == [("policy_removed", "clinic/b", "out-of-band")]
+    asyncio.run(watch.sync())
+    assert len(seen) == 1  # reported once
+
+
+class FakeNet(NoNet):
+    """A cluster in a dict: apply and remove change it, listing reads it."""
+    def __init__(self):
+        self.state = {}
+
+    def apply(self):
+        self.state = specs(a=1, b=1)
+
+    def remove(self):
+        self.state = {}
+
+    def listing(self):
+        return dict(self.state)
+
+
+def put_network(client, mode):
+    return client.put("/layers/network", json={"mode": mode})
+
+
+def test_a_controller_apply_is_marked_controller_made_and_a_later_deletion_is_not():
+    store, net = Store(), FakeNet()
+    app = create_app(store, sources=(), exec_in=fake_exec(""), kube=fake_kube(), wait=no_wait, net=net)
+    with TestClient(app) as client:
+        assert put_network(client, "enforce").status_code == 200
+        added = [e for e in store.since() if e["kind"] == "policy_added"]
+        assert sorted(e["dst"] for e in added) == ["clinic/a", "clinic/b"]
+        assert {e["evidence"]["origin"] for e in added} == {"controller"}
+        put_network(client, "off")
+        assert {e["evidence"]["origin"] for e in store.since() if e["kind"] == "policy_removed"} == {"controller"}

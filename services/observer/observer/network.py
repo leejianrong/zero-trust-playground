@@ -1,10 +1,12 @@
 """The network layer (ADR-0011): a default-deny ingress policy per namespace plus one allow per
 legitimate call. EDGES is the single list; the policies are generated from it."""
+import asyncio
 import json
 import subprocess
 import sys
 
 from .adapters import KUBECTL
+from .normalize import event
 
 LABEL = ("ztp/layer", "network")
 NAMESPACES = ("clinic", "agents")
@@ -75,6 +77,51 @@ def applied(run=kubectl) -> bool:
         items = json.loads(run("-n", ns, "get", "networkpolicy", "-l", "=".join(LABEL), "-o", "json"))["items"]
         have |= {(ns, i["metadata"]["name"]) for i in items}
     return have == {(p["metadata"]["namespace"], p["metadata"]["name"]) for p in policies()}
+
+
+def listing(run=kubectl) -> dict:
+    """Every NetworkPolicy in the playground's namespaces, ours or not: {(namespace, name): spec}."""
+    items = json.loads(run("get", "networkpolicy", "-A", "-o", "json"))["items"]
+    return {(i["metadata"]["namespace"], i["metadata"]["name"]): i["spec"]
+            for i in items if i["metadata"]["namespace"] in NAMESPACES}
+
+
+def diff_policies(old: dict, new: dict, origin: str):
+    """Compare two listings and emit one event per policy added, changed or removed. `origin` says who did it."""
+    for key in sorted(old.keys() | new.keys()):
+        kind = ("policy_added" if key not in old else "policy_removed" if key not in new
+                else "policy_changed" if old[key] != new[key] else None)
+        if kind:
+            ns, name = key
+            yield event("network", kind, src=origin, dst=f"{ns}/{name}", origin=origin, namespace=ns, name=name,
+                        reason=f"{name} {kind.removeprefix('policy_')} by {origin}")
+
+
+class Watch:
+    """Reports policy changes. The controller syncs right after its own apply or remove, under `lock`, so those
+    changes are marked `controller`; whatever the poll finds on its own is `out-of-band`. A change that lands
+    in the moment between the controller's apply and its sync would be marked `controller` too."""
+
+    def __init__(self, emit, lister=listing, interval=2):
+        self.emit, self.lister, self.interval = emit, lister, interval
+        self.seen = None  # the first listing is the baseline: policies that already exist are not news
+        self.lock = asyncio.Lock()
+
+    async def sync(self, origin="out-of-band"):
+        current = await asyncio.to_thread(self.lister)
+        if self.seen is not None:
+            for ev in diff_policies(self.seen, current, origin):
+                self.emit(ev)
+        self.seen = current
+
+    async def run(self):
+        while True:
+            try:
+                async with self.lock:
+                    await self.sync()
+            except (RuntimeError, json.JSONDecodeError, KeyError):
+                pass  # cluster not reachable yet; try again
+            await asyncio.sleep(self.interval)
 
 
 if __name__ == "__main__":

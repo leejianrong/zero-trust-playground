@@ -40,9 +40,11 @@ def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl
             return
         store.append(ev)
 
+    watch = network.Watch(emit, net.listing)
+
     @asynccontextmanager
     async def lifespan(_):
-        tasks = [asyncio.create_task(src(emit)) for src in sources]
+        tasks = [asyncio.create_task(src(emit)) for src in sources] + [asyncio.create_task(watch.run())]
         yield
         for t in tasks:
             t.cancel()
@@ -123,6 +125,12 @@ def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl
         except RuntimeError as e:
             raise HTTPException(502, f"kubectl failed: {e}") from e
 
+    async def synced(watch, *origin):
+        try:
+            await watch.sync(*origin)
+        except RuntimeError as e:
+            raise HTTPException(502, f"kubectl failed: {e}") from e
+
     async def current_modes() -> dict:
         ns, name = layers.CONFIGMAP
         out = await kube("-n", ns, "get", "configmap", name, "-o", "json")
@@ -145,7 +153,10 @@ def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl
         if why := layers.refusal(before, layer, body.mode):
             raise HTTPException(409, why)
         if layer == "network":
-            await cluster(net.apply if body.mode == "enforce" else net.remove)
+            async with watch.lock:
+                await synced(watch)  # anything done by hand before this is out-of-band
+                await cluster(net.apply if body.mode == "enforce" else net.remove)
+                await synced(watch, "controller")
         else:
             ns, name = layers.CONFIGMAP
             await kube("-n", ns, "patch", "configmap", name, "--type", "merge", "-p", layers.patch(layer, body.mode))

@@ -30,6 +30,9 @@ class FakeNet:
     def applied(self):
         return self.on
 
+    def listing(self):
+        return {}
+
     def apply(self):
         if self.fail:
             raise RuntimeError("forbidden")
