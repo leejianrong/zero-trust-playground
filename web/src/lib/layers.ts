@@ -7,7 +7,7 @@ export const MODES: { id: Mode; label: string }[] = [
   { id: "enforce", label: "Enforce" },
 ];
 
-export type LayerInfo = { id: string; name: string; what: string; modes: Record<Mode, string> };
+export type LayerInfo = { id: string; name: string; what: string; modes: Record<Mode, string>; noAudit?: string };
 
 // What each mode does in this playground, as built. Keep in step with ADR-0010.
 export const LAYERS: LayerInfo[] = [
@@ -30,6 +30,17 @@ export const LAYERS: LayerInfo[] = [
       audit: "Each call is checked against the allow-list and a would-be refusal is logged. Nothing is refused. A forged certificate is still dropped during the TLS handshake, which cannot be logged.",
       enforce: "A caller with no valid identity, or one not on the allow-list, gets a 403 with a reason. Plain HTTP is refused except /healthz.",
     },
+  },
+  {
+    id: "network",
+    name: "Network policy",
+    what: "Kubernetes decides which pods may open a connection to which. Anything not on the list is dropped.",
+    modes: {
+      off: "No policy. Any pod can open a connection to any service, including the database.",
+      audit: "Not offered. A dropped connection leaves no log we can read.",
+      enforce: "Default-deny on the clinic and agents namespaces, plus one allow for each real call. Only records-api reaches Postgres.",
+    },
+    noAudit: "Not available: a dropped connection leaves no log we can read, so there is nothing to show in audit.",
   },
 ];
 

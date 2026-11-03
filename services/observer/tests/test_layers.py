@@ -21,14 +21,32 @@ class FakeKube:
         return ""
 
 
-def make(data=None):
+class FakeNet:
+    """Stands in for observer.network: whether the policy set exists."""
+
+    def __init__(self, on=False, fail=False):
+        self.on, self.fail = on, fail
+
+    def applied(self):
+        return self.on
+
+    def apply(self):
+        if self.fail:
+            raise RuntimeError("forbidden")
+        self.on = True
+
+    def remove(self):
+        self.on = False
+
+
+def make(data=None, net=None):
     kube, store = FakeKube(data), Store()
-    return TestClient(create_app(store, sources=(), kube=kube)), kube, store
+    return TestClient(create_app(store, sources=(), kube=kube, net=net or FakeNet())), kube, store
 
 
 def test_reads_the_current_modes():
     client, _, _ = make({"identity": "enforce"})
-    assert client.get("/layers").json() == {"identity": "enforce", "mtls": "off"}
+    assert client.get("/layers").json() == {"identity": "enforce", "mtls": "off", "network": "off"}
 
 
 def test_a_change_is_written_and_announced():
@@ -69,3 +87,38 @@ def test_mtls_is_allowed_once_identity_is_on():
     client, kube, _ = make({"identity": "audit"})
     assert client.put("/layers/mtls", json={"mode": "audit"}).status_code == 200
     assert kube.data["mtls"] == "audit"
+
+
+def test_network_enforce_applies_the_policies_and_announces_it():
+    net = FakeNet()
+    client, kube, store = make(net=net)
+    assert client.put("/layers/network", json={"mode": "enforce"}).json()["network"] == "enforce"
+    assert net.on and kube.patches == []
+    assert client.get("/layers").json()["network"] == "enforce"
+    ev = store.since(0)[-1]
+    assert (ev["layer"], ev["kind"], ev["evidence"]["after"]) == ("network", "layer_mode_changed", "enforce")
+
+
+def test_network_off_removes_the_policies():
+    net = FakeNet(on=True)
+    client, _, _ = make(net=net)
+    assert client.put("/layers/network", json={"mode": "off"}).status_code == 200
+    assert not net.on
+
+
+def test_network_audit_is_refused_with_a_reason_and_changes_nothing():
+    net = FakeNet()
+    client, _, store = make(net=net)
+    r = client.put("/layers/network", json={"mode": "audit"})
+    assert r.status_code == 409 and "no audit mode" in r.json()["detail"]
+    assert not net.on and store.since(0) == []
+
+
+def test_a_kubectl_failure_is_a_502_not_a_crash():
+    client, _, _ = make(net=FakeNet(fail=True))
+    assert client.put("/layers/network", json={"mode": "enforce"}).status_code == 502
+
+
+def test_network_needs_no_identity():
+    client, _, _ = make()
+    assert client.put("/layers/network", json={"mode": "enforce"}).status_code == 200

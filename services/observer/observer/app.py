@@ -8,7 +8,7 @@ from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from . import adapters, layers, links
+from . import adapters, layers, links, network
 from .normalize import event
 from .store import Store
 
@@ -29,7 +29,7 @@ class ModeChange(BaseModel):
 
 
 def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl_exec, catalog=CATALOG,
-               probe_url=links.probe, kube=kubectl, wait=asyncio.sleep):
+               probe_url=links.probe, kube=kubectl, wait=asyncio.sleep, net=network):
     store = store or Store("observer.db")
     attacks = {a["name"]: a for a in json.loads(Path(catalog).read_text())}
 
@@ -112,12 +112,19 @@ def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl
             raise HTTPException(502, "web did not answer; is `make clinic` deployed?")
         return {"ok": True, "patient": patient}
 
+    async def cluster(fn):
+        try:
+            return await asyncio.to_thread(fn)
+        except RuntimeError as e:
+            raise HTTPException(502, f"kubectl failed: {e}") from e
+
     async def current_modes() -> dict:
         ns, name = layers.CONFIGMAP
         out = await kube("-n", ns, "get", "configmap", name, "-o", "json")
         if not out.strip():
             raise HTTPException(502, "layer-modes ConfigMap not found; is `make clinic` deployed?")
-        return layers.parse(out)
+        applied = await cluster(net.applied)
+        return {**layers.parse(out), "network": "enforce" if applied else "off"}
 
     @app.get("/layers")
     async def get_layers():
@@ -132,8 +139,11 @@ def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl
         before = await current_modes()
         if why := layers.refusal(before, layer, body.mode):
             raise HTTPException(409, why)
-        ns, name = layers.CONFIGMAP
-        await kube("-n", ns, "patch", "configmap", name, "--type", "merge", "-p", layers.patch(layer, body.mode))
+        if layer == "network":
+            await cluster(net.apply if body.mode == "enforce" else net.remove)
+        else:
+            ns, name = layers.CONFIGMAP
+            await kube("-n", ns, "patch", "configmap", name, "--type", "merge", "-p", layers.patch(layer, body.mode))
         if before[layer] != body.mode:
             store.append(event(layer, "layer_mode_changed", "info", src="learner", reason=f"{layer} set to {body.mode}",
                                before=before[layer], after=body.mode))

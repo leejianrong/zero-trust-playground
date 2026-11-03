@@ -5,7 +5,7 @@ const WEB = "http://localhost:8081";
 
 const put = (page: Page, layer: string, mode: string) =>
   page.request.put(`${OBSERVER}/layers/${layer}`, { data: { mode } });
-const reset = async (page: Page) => { await put(page, "mtls", "off"); await put(page, "identity", "off"); };
+const reset = async (page: Page) => { await put(page, "network", "off"); await put(page, "mtls", "off"); await put(page, "identity", "off"); };
 const mode = (page: Page, layer: string) => page.getByRole("radiogroup", { name: new RegExp(layer) }).getByRole("radio", { checked: true });
 
 test.beforeEach(async ({ page }) => reset(page));
@@ -33,5 +33,23 @@ test("mTLS enforce with identity off is refused, with the reason, and nothing ch
   await page.getByRole("radiogroup", { name: /Mutual TLS/ }).getByRole("radio", { name: "Enforce" }).click();
   await expect(page.getByRole("alert")).toContainText("mTLS needs workload identity");
   await expect(mode(page, "Mutual TLS")).toHaveText("Off");
-  expect(await (await page.request.get(`${OBSERVER}/layers`)).json()).toEqual({ identity: "off", mtls: "off" });
+  expect(await (await page.request.get(`${OBSERVER}/layers`)).json()).toEqual({ identity: "off", mtls: "off", network: "off" });
+});
+
+test("network enforce stops the attacker reaching Postgres, and audit is not offered", async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.goto("/#layers");
+  const group = page.getByRole("radiogroup", { name: /Network policy/ });
+  await expect(group.getByRole("radio", { name: "Audit" })).toBeDisabled();
+  await expect(page.getByText("Not available: a dropped connection leaves no log")).toBeVisible();
+
+  const attack = async () => (await (await page.request.post(`${OBSERVER}/attacks/read-postgres/run`, { timeout: 30_000 })).json()).evidence.outcome;
+  expect(await attack()).toBe("succeeds");
+  await group.getByRole("radio", { name: "Enforce" }).click();
+  await expect(mode(page, "Network policy")).toHaveText("Enforce");
+  await expect.poll(attack, { timeout: 5_000 + 20_000 }).toBe("blocked");
+
+  await group.getByRole("radio", { name: "Off" }).click();
+  await expect(mode(page, "Network policy")).toHaveText("Off");
+  await expect.poll(attack, { timeout: 20_000 }).toBe("succeeds");
 });

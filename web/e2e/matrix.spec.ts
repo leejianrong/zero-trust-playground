@@ -37,7 +37,7 @@ for (const { identity, mtls } of SETTINGS) {
     expect(catalogue.length).toBeGreaterThanOrEqual(6);
     for (const { name } of catalogue) {
       const ev = (await (await request.post(`${OBSERVER}/attacks/${name}/run`, { timeout: 60_000 })).json()).evidence;
-      expect(ev.modes, name).toEqual({ identity, mtls });
+      expect(ev.modes, name).toMatchObject({ identity, mtls, network: "off" });
       expect(ev.as_expected, `${name}: ${ev.outcome}, expected ${ev.expected}`).toBe(true);
       // A refusal that happens during a request names the layer. The forged certificate dies in the handshake first.
       if (ev.outcome === "blocked" && name !== "forged-identity") expect(ev.stopped_by, name).toBe("mtls");
