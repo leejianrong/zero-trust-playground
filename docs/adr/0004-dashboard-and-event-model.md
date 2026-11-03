@@ -14,7 +14,7 @@ The user's requirement: the dashboard has to be really solid, because it is what
 
 **One event model.** Every source is adapted into a single JSON event and pushed over one server-sent-events stream:
 
-```
+```text
 { id, ts, layer, kind, src, dst, verdict, reason, evidence }
 layer   : identity | mtls | network | secrets | user | runtime
 verdict : allow | deny | info

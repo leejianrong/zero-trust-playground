@@ -27,7 +27,9 @@ The V1 spike showed stdlib `ssl` contexts built from py-spiffe SVIDs work, and t
 
 **Two listeners per service.** Port 8080 is plain and port 8443 is mTLS. `web` keeps only the plain listener for browsers (the user layer is V6). Clients use mTLS whenever the identity layer is on.
 
-**Enforcement lives in the app, not the handshake.** The TLS listener asks for a client certificate but does not require one (`CERT_OPTIONAL`), so a caller with no certificate gets through the handshake and is refused with a `deny` event that names the reason and carries the trace id. A certificate that is presented but not signed by the trust bundle (a forged identity) fails the handshake in `audit` and `enforce`, and cannot be audited. The tutorial says so.
+**Enforcement lives in the app, not the handshake.** The TLS listener asks for a client certificate but does not require one (`CERT_OPTIONAL`), so a caller with no certificate gets through the handshake. It is then refused with a `deny` event that names the reason and carries the trace id.
+
+A certificate that is presented but not signed by the trust bundle (a forged identity) fails the handshake in `audit` and `enforce`, and that refusal cannot be audited. The tutorial says so.
 
 **Caller identity is read in-process.** A small `H11Protocol` subclass records the peer certificate's URI SAN in `connection_made`, keyed by the client's address and port, and removes it in `connection_lost`. Middleware looks the caller up from `scope["client"]`. The TLS context comes from `ssl_context_factory` and is rebuilt on a `sni_callback`, so rotation never needs a restart.
 
