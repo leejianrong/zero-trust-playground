@@ -7,9 +7,11 @@ from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.responses import JSONResponse
 
-from .common import client, emit, trace_var
+from .common import client, emit, start_background, trace_var
+from .guard import Guard
 
 RECORDS = os.environ.get("RECORDS_URL", "http://records-api.clinic.svc:8080")
+modes, _identity = start_background("records-mcp")
 mcp = MCPServer("clinic-records", instructions="Look up and manage patient records for the Riverside Clinic.")
 
 
@@ -61,3 +63,4 @@ async def healthz(_request):
 app = mcp.streamable_http_app(
     stateless_http=True, host="0.0.0.0",
     transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False))
+app.add_middleware(Guard, service="records-mcp", modes=modes)

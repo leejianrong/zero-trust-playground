@@ -4,7 +4,7 @@ Zero trust starts from one assumption: anything inside your network might alread
 
 ## Why layers
 
-Look at the five attacks in the [Attack lab](../the-open-clinic.md). Each one gets through for a different reason:
+Look at the five [attacks](../reference/attacks.md), which you run with `make attack`. Each one gets through for a different reason:
 
 | Attack | What let it through | The layer that answers it |
 |---|---|---|

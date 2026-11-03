@@ -20,6 +20,12 @@ def from_log_line(text: str):
     if line.get("event") == "x509_svid":
         return event("identity", "svid_issued", src=line["spiffe_id"], workload=line["workload"],
                      serial=line["serial"], not_before=line["not_before"], not_after=line["not_after"])
+    if line.get("event") == "authz":
+        # would_deny is an audit finding, so it is information, not a refusal.
+        verdict = {"allow": "allow", "deny": "deny"}.get(line["verdict"], "info")
+        return event("mtls", "authorisation", verdict, src=line["caller"] or "anonymous", dst=line["service"],
+                     reason=line["reason"], trace=line["trace"], mode=line["mode"], decision=line["verdict"],
+                     method=line["method"], route=line["route"], listener=line["listener"])
     if line.get("event") == "http":
         # No layer has decided anything yet, so errors are information, not denials.
         return event("app", "http_request", "allow" if line["status"] < 400 else "info",

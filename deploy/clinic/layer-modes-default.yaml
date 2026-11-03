@@ -1,0 +1,8 @@
+# The starting modes. Applied only when the ConfigMap is missing, so `make clinic` never
+# resets what the learner chose. Layers are added here as their slices land.
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: layer-modes, namespace: clinic}
+data:
+  identity: "off"
+  mtls: "off"

@@ -20,7 +20,7 @@
 </figure>
 
 <style>
-  .ring { position: relative; margin: 0; width: 132px; height: 132px; flex: none; }
+  .ring { position: relative; margin: 0; width: 96px; height: 96px; flex: none; }
   svg { width: 100%; height: 100%; transform: rotate(-90deg); }
   circle { fill: none; stroke-width: 9; }
   .track { stroke: var(--surface-sunk); }
@@ -28,8 +28,8 @@
   .low .arc { stroke: var(--expiry-fill); }
   .expired .arc { stroke: var(--deny); }
   figcaption { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
-  .big { font-size: 1.6rem; font-weight: 700; line-height: 1; }
-  .sub { font-size: 0.75rem; color: var(--ink-soft); margin-top: 0.2rem; }
+  .big { font-size: 1.2rem; font-weight: 700; line-height: 1; }
+  .sub { font-size: 0.7rem; color: var(--ink-soft); margin-top: 0.2rem; }
   .low .big { color: var(--expiry); }
   .expired .big { color: var(--deny); }
 </style>

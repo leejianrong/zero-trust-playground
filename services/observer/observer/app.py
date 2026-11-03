@@ -6,11 +6,13 @@ from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
-from . import adapters, links
+from . import adapters, layers, links
 from .normalize import event
 from .store import Store
 
+PAGE = 500  # events per store read; matches Store.since's default limit
 CATALOG = Path(__file__).resolve().parents[2] / "clinic/clinic/attacks/catalog.json"
 
 
@@ -18,8 +20,16 @@ async def kubectl_exec(namespace, deploy, *cmd) -> str:
     return await adapters.run(*adapters.KUBECTL, "-n", namespace, "exec", f"deploy/{deploy}", "--", *cmd)
 
 
+async def kubectl(*args) -> str:
+    return await adapters.run(*adapters.KUBECTL, *args)
+
+
+class ModeChange(BaseModel):
+    mode: str
+
+
 def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl_exec, catalog=CATALOG,
-               probe_url=links.probe):
+               probe_url=links.probe, kube=kubectl):
     store = store or Store("observer.db")
     attacks = {a["name"]: a for a in json.loads(Path(catalog).read_text())}
 
@@ -47,10 +57,15 @@ def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl
         async def stream():
             nonlocal cursor
             while True:
-                for ev in store.since(cursor, trace=trace):
+                page = store.since(cursor, trace=trace)
+                for ev in page:
                     cursor = ev["id"]
                     yield f"id: {ev['id']}\ndata: {json.dumps(ev)}\n\n"
-                if not follow or await request.is_disconnected():
+                if await request.is_disconnected():
+                    return
+                if len(page) == PAGE:  # a full page means more history is waiting
+                    continue
+                if not follow:
                     return
                 await asyncio.sleep(0.5)
 
@@ -84,6 +99,33 @@ def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl
         if out.strip() != "200":
             raise HTTPException(502, "web did not answer; is `make clinic` deployed?")
         return {"ok": True, "patient": patient}
+
+    async def current_modes() -> dict:
+        ns, name = layers.CONFIGMAP
+        out = await kube("-n", ns, "get", "configmap", name, "-o", "json")
+        if not out.strip():
+            raise HTTPException(502, "layer-modes ConfigMap not found; is `make clinic` deployed?")
+        return layers.parse(out)
+
+    @app.get("/layers")
+    async def get_layers():
+        return await current_modes()
+
+    @app.put("/layers/{layer}")
+    async def put_layer(layer: str, body: ModeChange):
+        if layer not in layers.LAYERS:
+            raise HTTPException(422, f"unknown layer {layer}; known: {', '.join(layers.LAYERS)}")
+        if body.mode not in layers.MODES:
+            raise HTTPException(422, f"unknown mode {body.mode}; use one of {', '.join(layers.MODES)}")
+        before = await current_modes()
+        if why := layers.refusal(before, layer, body.mode):
+            raise HTTPException(409, why)
+        ns, name = layers.CONFIGMAP
+        await kube("-n", ns, "patch", "configmap", name, "--type", "merge", "-p", layers.patch(layer, body.mode))
+        if before[layer] != body.mode:
+            store.append(event(layer, "layer_mode_changed", "info", src="learner", reason=f"{layer} set to {body.mode}",
+                               before=before[layer], after=body.mode))
+        return {**before, layer: body.mode}
 
     @app.get("/links")
     async def tool_links():

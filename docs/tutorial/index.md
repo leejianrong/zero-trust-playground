@@ -13,8 +13,8 @@ It follows the [Layered Zero Trust validated pattern](https://validatedpatterns.
 |---|---|---|
 | The clinic app as a user | the clinic page on port 8081 | [The open clinic](the-open-clinic.md) |
 | The cluster as an operator | Headlamp on port 4466 | [Read the cluster with Headlamp](how-to/read-the-cluster-with-headlamp.md) |
-| What is happening, and what stops what | our dashboard on port 5173 | [Get started](get-started.md) |
-| An AI agent using the app | the Attack lab | [Agents and MCP](agents-and-mcp.md) |
+| Each workload's identity, rotating | our dashboard on port 5173 | [Get started](get-started.md) |
+| An AI agent using the app | the command line (`make attack`) | [Agents and MCP](agents-and-mcp.md) |
 
 ## Where the playground is today
 

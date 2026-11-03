@@ -1,6 +1,6 @@
 # ADR-0005: Layer modes are changed by a small controller with narrow RBAC
 
-- Status: Accepted
+- Status: Accepted (the identity and mtls rows of the mode table are refined by ADR-0010)
 - Date: 2026-11-03
 - Deciders: user, agent
 

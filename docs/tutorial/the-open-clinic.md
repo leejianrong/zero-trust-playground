@@ -33,23 +33,24 @@ user -> web  POST /api/patients  201
 
 Your browser called `web`, and `web` called `records-api`. The inner call appears first because each event is written when its request finishes.
 
-Now open **Topology** in the dashboard and press **Use the app**. Lines appear for each hop, with a count, and the list underneath names every path.
-
-![The Topology view showing user, web, billing, records-mcp, records-api, postgres, agent and attacker, with the attacker's paths in amber](assets/topology-light.png)
-
 ## Attack it
 
-Open **Attack lab** and run the first three attacks one at a time. Each one runs from the `attacker` pod, which belongs to no one and has no business in the clinic.
+Attacks run from the command line, from the `attacker` pod, which belongs to no one and has no business in the clinic. With `make observer` running in another terminal, list them and run the first three one at a time:
 
-![The Attack lab with five attacks, each reporting that it succeeded and nothing stopped it](assets/attacks-light.png)
+```console
+$ make attack
+$ make attack A=read-postgres
+$ make attack A=no-identity-records
+$ make attack A=cross-namespace-billing
+```
 
-All three report **Succeeded, nothing stopped it**. In the same order:
+Each prints `SUCCEEDS` and the evidence it collected, such as the row count or the HTTP status. Use the clinic page or Headlamp to check the effect for yourself. In the same order:
 
 1. **Read patient records straight from Postgres.** The attacker logs in with the shared database password and reads the table. The password is the same one `records-api` uses, and the database accepts connections from any pod.
 2. **Call records-api with no identity.** The service answers anyone who asks. It never checks who is calling.
 3. **Reach billing from another namespace.** The network lets any pod talk to any other.
 
-Go back to **Topology**. The attacker's paths are amber and marked as allowed. Those amber lines are what the next slices set out to remove.
+Each result is also stored as an `attack_result` event, so `curl -s 'localhost:8765/events?follow=false' | grep attack_result` lists every run. Those successes are what the next slices set out to remove.
 
 ## Recap
 

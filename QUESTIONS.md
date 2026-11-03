@@ -34,6 +34,13 @@ None. Round 1 closed on 2026-11-03.
 | Q22 | Cluster dashboard | DECIDED | Headlamp, view-only token by default, admin contrast available. Kubernetes Dashboard is archived | ADR-0009 |
 | Q23 | Docs site | DECIDED | Zensical tutorial site on Pages (reverses Q5) | ADR-0007 |
 | Q24 | Architecture view | DECIDED | New dashboard view built in V3 | ADR-0009 |
+| Q25 | mtls mode semantics | ASSUMED | Permissive and strict, as in a service mesh: `off`, `audit`, `enforce` | ADR-0010 |
+| Q26 | Where enforcement happens | ASSUMED | In the app (client cert optional in the handshake) so refusals carry a trace id and a reason. Forged certificates fail the handshake even in audit | ADR-0010 |
+| Q27 | How services learn the mode | ASSUMED | Poll one ConfigMap through the Kubernetes API every 2 seconds, with a Role limited to that ConfigMap | ADR-0010 |
+| Q28 | Controller location | ASSUMED | Host process in the observer for now, so it is as privileged as the user running it. In-cluster controller is a later card | ADR-0010 |
+| Q29 | Browser access to web | ASSUMED | Plain HTTP until the user layer in V6 | ADR-0010 |
+| Q30 | Injection attack trigger | ASSUMED | Through the clinic page's AI summary, the user's own path. mTLS must not stop it | SLICES V3 |
+| Q31 | Expired-SVID replay attack | ASSUMED | Replaced by a forged-identity attack | SLICES V3 |
 | Q18 | SPIRE federation | DEFERRED | Later playground | n/a |
 | Q19 | Offline operation | DEFERRED | First run needs internet; optional `k3d image import` pre-pull | ADR-0001 |
 

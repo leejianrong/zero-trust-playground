@@ -21,14 +21,17 @@ spec:
         - name: app
           image: ztp/clinic:dev
           imagePullPolicy: Never
-          command: [uvicorn, "clinic.agent:app", --host, "0.0.0.0", --port, "8080"]
+          command: [python, -m, clinic.serve, "clinic.agent:app", --mtls]
           ports: [{containerPort: 8080}]
           env:
+            - {name: SPIFFE_ENDPOINT_SOCKET, value: "unix:///spiffe-workload-api/spire-agent.sock"}
             - {name: AGENT_OBEYS_INJECTED_TEXT, value: "true"}
+          volumeMounts: [{name: spiffe, mountPath: /spiffe-workload-api, readOnly: true}]
+      volumes: [{name: spiffe, csi: {driver: csi.spiffe.io, readOnly: true}}]
 ---
 apiVersion: v1
 kind: Service
 metadata: {name: agent, namespace: agents}
 spec:
   selector: {app: agent}
-  ports: [{port: 8080, targetPort: 8080}]
+  ports: [{name: http, port: 8080, targetPort: 8080}, {name: mtls, port: 8443, targetPort: 8443}]
