@@ -28,6 +28,13 @@ async def wait_for_identity():
     return identity.material
 
 
+async def keep_verify_mode_current(factory) -> None:
+    """Off means no client certificate is requested. The mode changes while the listener runs."""
+    while True:
+        factory.apply()
+        await asyncio.sleep(0.5)
+
+
 async def main(target: str, mtls: bool) -> None:
     app = import_from_string(target)
     servers = [Server(uvicorn.Config(app, host="0.0.0.0", port=8080, log_level="warning"))]
@@ -42,10 +49,12 @@ async def main(target: str, mtls: bool) -> None:
     if mtls:
         material = await wait_for_identity()
         # The app's lifespan already runs under the plain server; running it twice would fail.
+        factory = ssl_context_factory(material, lambda: _runtime["modes"].get("mtls") != "off")
         servers.append(Server(uvicorn.Config(
             app, host="0.0.0.0", port=8443, log_level="warning", lifespan="off",
-            http=protocol_class(PEERS), ssl_context_factory=ssl_context_factory(material))))
+            http=protocol_class(PEERS), ssl_context_factory=factory)))
         tasks.append(asyncio.create_task(servers[1].serve()))
+        tasks.append(asyncio.create_task(keep_verify_mode_current(factory)))
     await asyncio.gather(*tasks)
 
 

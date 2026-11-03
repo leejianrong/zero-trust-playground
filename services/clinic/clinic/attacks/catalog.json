@@ -60,6 +60,29 @@
     }
   },
   {
+    "name": "forged-identity",
+    "title": "Pretend to be the web app with a forged certificate",
+    "description": "From the attacker pod, connect to records-api's mTLS port with a self-signed certificate that names itself as the web app's SPIFFE ID, and ask for every patient.",
+    "target": "records-api",
+    "expected": {
+      "default": "succeeds",
+      "rules": [
+        {
+          "when": {
+            "mtls": "audit"
+          },
+          "outcome": "blocked"
+        },
+        {
+          "when": {
+            "mtls": "enforce"
+          },
+          "outcome": "blocked"
+        }
+      ]
+    }
+  },
+  {
     "name": "agent-prompt-injection",
     "title": "Let an agent summarise a poisoned record",
     "description": "A user-entered diagnosis hides an instruction. A user presses Summarise with AI in the clinic app. The simulated agent summarises the records, obeys the hidden instruction, and deletes a decoy patient it was never asked to touch.",

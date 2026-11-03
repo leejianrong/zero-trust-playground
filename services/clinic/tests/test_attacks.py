@@ -2,8 +2,9 @@ import json
 from pathlib import Path
 
 import httpx
+from cryptography import x509
 
-from clinic.attacks.run import ATTACKS, run
+from clinic.attacks.run import ATTACKS, CLAIMED, forged_certificate, run
 
 CATALOG = json.loads((Path(__file__).parent.parent / "clinic/attacks/catalog.json").read_text())
 
@@ -70,3 +71,11 @@ def test_injection_attack_succeeds_only_if_the_decoy_is_gone():
     state.update(patients={}, next=10, agent_obeys=False)
     assert run("agent-prompt-injection", client(web))["outcome"] == "blocked"
     assert state["patients"] == {}
+
+
+def test_the_forged_certificate_names_the_web_app_but_is_signed_by_itself():
+    pem, _ = forged_certificate()
+    cert = x509.load_pem_x509_certificate(pem.encode())
+    san = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+    assert san.get_values_for_type(x509.UniformResourceIdentifier) == [CLAIMED]
+    assert cert.issuer == cert.subject  # no CA vouches for it

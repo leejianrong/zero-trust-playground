@@ -88,13 +88,18 @@ def load_chain(ctx: ssl.SSLContext, material: Material) -> None:
         ctx.load_cert_chain(cert, key)
 
 
-def ssl_context_factory(current: Callable[[], Material]):
+def ssl_context_factory(current: Callable[[], Material], verify: Callable[[], bool] = lambda: True):
     """For uvicorn's `ssl_context_factory`. `current()` returns the latest material.
 
     The listener keeps one context. On every handshake the SNI callback installs a context
-    built from the latest material, so a rotated SVID is served to new connections.
+    built from the latest material, so a rotated SVID reaches new connections.
+
+    Whether a client certificate is requested cannot be swapped that way: a connection keeps the
+    verify mode of the listener's own context. `factory.apply()` sets it from `verify()`, and the
+    caller runs it whenever the layer mode may have changed.
     """
     cache: dict[str, tuple[Material, ssl.SSLContext]] = {}
+    listener: list[ssl.SSLContext] = []
 
     def latest() -> ssl.SSLContext:
         material = current()
@@ -103,15 +108,22 @@ def ssl_context_factory(current: Callable[[], Material]):
             cache["ctx"] = (material, _context(material))
         return cache["ctx"][1]
 
+    def apply() -> None:
+        for ctx in listener:
+            ctx.verify_mode = ssl.CERT_OPTIONAL if verify() else ssl.CERT_NONE
+
     def factory(_config, _default) -> ssl.SSLContext:
-        base = latest()
+        base = _context(current())
+        base.verify_mode = ssl.CERT_OPTIONAL if verify() else ssl.CERT_NONE
 
         def swap(sock, _name, _ctx) -> None:
             sock.context = latest()
 
         base.sni_callback = swap
+        listener.append(base)
         return base
 
+    factory.apply = apply  # type: ignore[attr-defined]
     return factory
 
 

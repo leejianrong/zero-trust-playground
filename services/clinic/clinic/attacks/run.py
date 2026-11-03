@@ -3,15 +3,24 @@
 Outcomes are only "succeeds" (the attacker got what it wanted) or "blocked". Which layer
 blocked it is worked out by the observer from the events, not guessed here."""
 import asyncio
+import datetime as dt
 import json
 import os
 import sys
+import tempfile
 import uuid
+from pathlib import Path
 
 import httpx
 import psycopg
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.x509.oid import NameOID
 
+from ..common import secure
 from ..mcp_client import data_of, open_session
+from ..mtls import client_context
 
 RECORDS = os.environ.get("RECORDS_URL", "http://records-api.clinic.svc:8080")
 BILLING = os.environ.get("BILLING_URL", "http://billing.clinic.svc:8080")
@@ -51,6 +60,38 @@ def mcp_no_identity(http):
     return {"patients_listed": len(records)}
 
 
+CLAIMED = "spiffe://playground.local/ns/clinic/sa/web"
+
+
+def forged_certificate(spiffe_id: str = CLAIMED) -> tuple[str, str]:
+    """A self-signed certificate that names itself spiffe_id. Anyone can write that name; only SPIRE can sign it."""
+    key = ec.generate_private_key(ec.SECP256R1())
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "forged")])
+    now = dt.datetime.now(dt.UTC)
+    cert = (x509.CertificateBuilder().subject_name(name).issuer_name(name).public_key(key.public_key())
+            .serial_number(x509.random_serial_number()).not_valid_before(now - dt.timedelta(minutes=1))
+            .not_valid_after(now + dt.timedelta(hours=1))
+            .add_extension(x509.SubjectAlternativeName([x509.UniformResourceIdentifier(spiffe_id)]), critical=False)
+            .sign(key, hashes.SHA256()))
+    return (cert.public_bytes(serialization.Encoding.PEM).decode(),
+            key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+                              serialization.NoEncryption()).decode())
+
+
+def forged_identity(http):
+    """Dial records-api's mTLS port with a certificate that claims to be the web app."""
+    cert_pem, key_pem = forged_certificate()
+    ctx = client_context(None)  # the attacker has no bundle, so it cannot check the server either
+    with tempfile.TemporaryDirectory() as d:
+        (Path(d) / "c.pem").write_text(cert_pem)
+        (Path(d) / "k.pem").write_text(key_pem)
+        ctx.load_cert_chain(Path(d) / "c.pem", Path(d) / "k.pem")
+    with httpx.Client(verify=ctx, headers=http.headers, timeout=5) as c:
+        r = c.get(secure(f"{RECORDS}/patients"))
+    r.raise_for_status()
+    return {"claimed": CLAIMED, "status": r.status_code, "items": len(r.json())}
+
+
 def _patients(http):
     r = http.get(f"{WEB}/api/patients")
     r.raise_for_status()
@@ -86,6 +127,7 @@ ATTACKS = {
     "no-identity-records": no_identity_records,
     "cross-namespace-billing": cross_namespace_billing,
     "mcp-no-identity": mcp_no_identity,
+    "forged-identity": forged_identity,
     "agent-prompt-injection": agent_prompt_injection,
 }
 
