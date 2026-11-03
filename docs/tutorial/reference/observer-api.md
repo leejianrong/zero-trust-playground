@@ -48,3 +48,14 @@ Returns each tool with `name`, `url`, `purpose`, `start` and `up`. `up` is true 
 ## `GET /healthz`
 
 Returns `{"ok": true}`.
+
+## `GET /layers`
+
+Returns the current mode of each layer, for example `{"identity": "off", "mtls": "off"}`. The modes live in the `layer-modes` ConfigMap in the `clinic` namespace, and the services poll it every 2 seconds.
+
+## `PUT /layers/{layer}`
+
+Sets one layer to `off`, `audit` or `enforce` with a body like `{"mode": "audit"}`, and returns the new modes. Returns `422` for an unknown layer or mode. Returns `409` with a reason when the change would break the playground: `mtls` cannot be on while `identity` is off, and `identity` cannot go off while `mtls` is on. A change that alters a mode is recorded as a `layer_mode_changed` event. The dashboard's **Layers** view calls this endpoint.
+
+!!! warning "The controller can turn security off"
+    The observer runs on your machine with your kubeconfig, so this endpoint is as privileged as you are. It listens on localhost only.
