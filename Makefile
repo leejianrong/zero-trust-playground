@@ -41,3 +41,10 @@ echo: ## build and deploy the V1 spike workloads
 	k3d image import ztp/echo:dev -c $(CLUSTER_NAME)
 	kubectl --context $(CTX) apply -f deploy/clinic/echo.yaml
 	kubectl --context $(CTX) -n clinic rollout restart deploy/echo-a deploy/echo-b
+
+.PHONY: observer test
+observer: ## run the observer on :8765 against the cluster
+	cd services/observer && uv run uvicorn --factory observer.app:create_app --port 8765
+
+test: ## fast no-infra tests and lint
+	cd services/observer && uv run ruff check . && uv run pytest -q
