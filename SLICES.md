@@ -47,7 +47,7 @@ Each slice also ships its view, so the dashboard grows with the system: V1 Ident
 
 **Build plan**
 
-1. Replace the echo workloads with the clinic app: `web`, `records-api`, `billing`, Postgres seeded with fake patients. Plain HTTP, static DB password, no authorisation.
+1. Add the clinic app (the echo workloads stay until V3, when the real services start fetching SVIDs): `web`, `records-api`, `billing`, Postgres seeded with fake patients. Plain HTTP, static DB password, no authorisation.
 2. Attacker namespace and pod with the attack runner and the first three attacks (read Postgres directly, call `records-api` with no identity, call `billing` from another namespace).
 3. Per-request structured events and trace-id propagation.
 4. Topology view: workloads as nodes labelled with SPIFFE IDs, edges from observed calls, verdict on each edge.

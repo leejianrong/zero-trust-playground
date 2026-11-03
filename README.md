@@ -6,7 +6,7 @@ The dashboard is the point. It shows identities rotating, requests being allowed
 
 > **The concepts transfer to the real pattern. The manifests don't.** This uses upstream charts on k3d, not the Red Hat builds on OpenShift with GitOps. Several configurations are deliberately weak when a layer is off. Run it on localhost only.
 
-Status: slice V1 (workload identity and the Identity view) is built; the rest follow in order. The plan is in [PLAN.md](PLAN.md), the build order in [SLICES.md](SLICES.md), and the reasons in [docs/adr/](docs/adr/).
+Status: slices V1 (workload identity) and V2 (the unprotected clinic app and its first attacks) are built; the rest follow in order. The plan is in [PLAN.md](PLAN.md), the build order in [SLICES.md](SLICES.md), and the reasons in [docs/adr/](docs/adr/).
 
 ## Quick start
 
@@ -25,6 +25,14 @@ make echo       # two toy workloads that fetch SVIDs from SPIRE
 make observer   # event collector on :8765 (second terminal)
 cd web && npm install && npm run dev   # dashboard on :5173 (third terminal)
 ```
+
+Then deploy the clinic app and open the Topology and Attack lab views:
+
+```sh
+make clinic     # web, records-api, billing, postgres, plus the attacker pod
+```
+
+With no layers on, every attack gets through. That is the baseline the next slices take apart.
 
 Try the first break-it exercise: `kubectl delete clusterspiffeid clinic`. The cards flip to "Registration removed", then run out of time and expire. `make spire` brings the registration back. The chart's catch-all ClusterSPIFFEID is switched off on purpose, so no registration means no identity.
 

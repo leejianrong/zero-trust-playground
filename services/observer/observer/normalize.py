@@ -1,3 +1,5 @@
+import json
+import re
 import time
 
 
@@ -6,12 +8,37 @@ def event(layer, kind, verdict="info", src=None, dst=None, reason=None, trace=No
             "src": src, "dst": dst, "reason": reason, "trace": trace, "evidence": evidence}
 
 
-def from_workload_log(line: dict):
-    """Turn a workload's x509_svid log line into an identity event, else None."""
-    if line.get("event") != "x509_svid":
+def from_log_line(text: str):
+    """Turn a workload log line (kubectl may prefix it) into an event, else None."""
+    start = text.find("{")
+    if start < 0:
         return None
-    return event("identity", "svid_issued", src=line["spiffe_id"], workload=line["workload"],
-                 serial=line["serial"], not_before=line["not_before"], not_after=line["not_after"])
+    try:
+        line = json.loads(text[start:])
+    except json.JSONDecodeError:
+        return None
+    if line.get("event") == "x509_svid":
+        return event("identity", "svid_issued", src=line["spiffe_id"], workload=line["workload"],
+                     serial=line["serial"], not_before=line["not_before"], not_after=line["not_after"])
+    if line.get("event") == "http":
+        # No layer has decided anything yet, so errors are information, not denials.
+        return event("app", "http_request", "allow" if line["status"] < 400 else "info",
+                     src="user" if line["caller"] == "unknown" else line["caller"], dst=line["service"], trace=line["trace"],
+                     route=line["route"], method=line["method"], status=line["status"])
+    return None
+
+
+PG_CONNECT = re.compile(r"^(\S+) LOG:\s+connection authorized: user=(\S+) database=(\S+)")
+
+
+def from_postgres_line(text: str, pod_by_ip: dict):
+    """Postgres runs with log_line_prefix='%h ', so each line starts with the client IP."""
+    m = PG_CONNECT.match(text.strip())
+    if not m:
+        return None
+    ip, user, database = m.groups()
+    return event("app", "db_connect", "allow", src=pod_by_ip.get(ip, ip), dst="postgres",
+                 user=user, database=database, client_ip=ip)
 
 
 def entry_key(entry: dict) -> str:
