@@ -19,6 +19,7 @@ You start with `make up`, which gives you a working app with no protection and a
 - **Learner (Jian)**, the only user. Reads the dashboard, runs attacks, flips layers, does the break-it exercises.
 - **Toy services**: `web`, `records-api`, `billing`, Postgres. Real workloads with real identities.
 - **Attacker pod**: runs scripted attacks. Not a person.
+- **Agent**: a scripted AI agent that asks the clinic app for information through an MCP server on a person's behalf. It reads untrusted text, so it can be talked into misusing tools (ADR-0008).
 - **Layer controller**: changes layer modes. When the dashboard and `make` disagree, the cluster state wins and the dashboard reflects it.
 
 ## Scope
@@ -32,6 +33,9 @@ You start with `make up`, which gives you a working app with no protection and a
 - Vault with JWT-SVID auth and dynamic Postgres credentials; ESO for one static secret
 - Keycloak user login, one OIDC client per app
 - cert-manager short-lived CA for TLS edges
+- An MCP server (`records-mcp`) and a scripted agent that uses it, with agent-specific attacks (ADR-0008)
+- A dashboard hub (Explore view) with Headlamp for the cluster, and an Architecture view of the layers (ADR-0009)
+- A Zensical tutorial site, one page per slice (ADR-0007)
 - A dashboard with six views (ADR-0004) and a layer control panel (ADR-0005)
 - An attack catalogue with an attack × layer-mode matrix
 - Break-it exercises per slice, in Markdown
@@ -42,7 +46,6 @@ You start with `make up`, which gives you a working app with no protection and a
 - Compliance Operator, supply chain signing, SPIRE federation
 - Any production hardening. The playground is labelled, localhost-only and deliberately weak when layers are off.
 - Sharing code with agent-auth-lab (ADR-0006)
-- A docs site
 
 ## Requirements
 
@@ -58,6 +61,10 @@ You start with `make up`, which gives you a working app with no protection and a
 | R7 | The dashboard is solid enough to teach from: every view driven by real events, tested end to end, and usable in light and dark | Must-have |
 | R8 | The whole environment comes up from nothing in under 10 minutes and tears down cleanly | Must-have |
 | R9 | A runtime control (a compromised pod gets killed) | Nice-to-have |
+| R10 | An agent can use the clinic app through MCP, and the learner can watch it get talked into a harmful call and then stopped | Must-have |
+| R11 | One place links the clinic app, our dashboard, a cluster dashboard (Headlamp) and the docs, and shows which are up | Must-have |
+| R12 | A dashboard view shows how the layers are arranged and which are enforcing right now | Must-have |
+| R13 | A published tutorial teaches each slice, and its commands work as written | Must-have |
 
 ## Shape
 
@@ -73,6 +80,10 @@ You start with `make up`, which gives you a working app with no protection and a
 | S8 | cert-manager with a short-lived CA issuer for ingress and Keycloak TLS | 0003 |
 | S9 | Event adapters (service logs, SPIRE, Kubernetes API, Vault audit, Keycloak events) → one SSE stream, SQLite replay | 0004 |
 | S10 | Svelte dashboard: Topology, Identity, Request trace, Attack lab, Layer control, Secrets | 0004 |
+| S12 | `records-mcp` (MCP over streamable HTTP, four tools) and a scripted `agent` workload in namespace `agents`; naive mode obeys `ASSISTANT INSTRUCTION:` lines in tool output | 0008 |
+| S13 | Headlamp via Helm, read-only token from a `view`-bound ServiceAccount; Explore view with live link checks from the observer | 0009 |
+| S14 | Architecture view: pattern layers, mode per layer, what each protects, driven by the layer switches | 0009 |
+| S15 | Zensical site in `docs/tutorial/`, built on pull requests and deployed to Pages from `main` | 0007 |
 | S11 | Attack runner in the `attacker` pod; each attack declares its expected outcome per layer-mode combination | 0002 |
 
 ## Affordances
@@ -88,6 +99,8 @@ You start with `make up`, which gives you a working app with no protection and a
 | Off/audit/enforce switch per layer, with a "what this changes" note | Layer control | `PUT /layers/{layer}` |
 | Live credential list: type, holder, issued, TTL remaining | Secrets | Vault adapter |
 | Attack matrix table (attack rows × layer-mode columns) | Attack lab | stored attack results |
+| Links to every tool with live up/down | Explore | `GET /links` |
+| Layer diagram with each layer's current mode | Architecture | layer modes, S14 |
 
 **Non-UI**
 
@@ -97,13 +110,13 @@ You start with `make up`, which gives you a working app with no protection and a
 | `GET /events` (SSE), `GET /events?since=` | observer API | S9 |
 | `PUT /layers/{layer}` | controller API | ConfigMap, NetworkPolicy, Vault role |
 | `POST /attacks/{name}/run` | observer API | attacker pod |
-| `exercises/vN-*.md` | docs | one per slice |
+| `docs/tutorial/*.md` | docs | one tutorial page per slice, plus break-it how-tos |
 
 ## Implementation decisions
 
 - **Event contract** (ADR-0004) is versioned and the only interface between backends and UI. The UI never calls Vault, SPIRE or Kubernetes directly.
 - **Trace ids.** `web` creates a trace id per user action and passes it as a header. Every service copies it into its events. This is what makes the Request trace view possible. It is an observability header, not a security control, and the README says so.
-- **Attack catalogue** (initial): read Postgres directly from `attacker`; call `records-api` from `attacker` with no identity; call `records-api` from `billing` on a route it isn't allowed; replay a captured JWT-SVID after expiry; use a leaked static DB password from a pod that shouldn't have it; call `records-api` without a user token; reach `billing` from a pod in another namespace.
+- **Attack catalogue** (initial): call `records-mcp` with no identity; plant a poisoned record and let the naive agent act on it; read Postgres directly from `attacker`; call `records-api` from `attacker` with no identity; call `records-api` from `billing` on a route it isn't allowed; replay a captured JWT-SVID after expiry; use a leaked static DB password from a pod that shouldn't have it; call `records-api` without a user token; reach `billing` from a pod in another namespace.
 - **Expected-outcome table.** Each attack lists, per layer combination, `succeeds` or `stopped_by=<layer>`. The matrix test asserts every row. This doubles as the lesson's answer key.
 - **Naming.** Namespaces `clinic` (app), `spire`, `vault`, `keycloak`, `observability`, `attacker`. The attacker is in its own namespace to make the network layer meaningful.
 - **UI craft.** Design tokens, light and dark themes, keyboard-navigable, verdict conveyed by icon and text as well as colour. Built with the `frontend-design` skill. Diagrams for the Topology and Request trace views are drawn from live data, not static images.

@@ -2,7 +2,7 @@
 
 Vertical increments. Each ends in something you can see in the dashboard. V1 confronts the riskiest unknown (SPIRE on k3d, plus py-spiffe). Plan one build session per slice. V1 and V2 may need two.
 
-Each slice also ships its view, so the dashboard grows with the system: V1 Identity, V2 Topology and Attack lab, V3 Request trace and Layer control, V5 Secrets.
+Each slice also ships its tutorial page (ADR-0007) and its view, so the dashboard grows with the system: V1 Identity, V2 Topology and Attack lab, V2b Explore, V3 Request trace, Layer control and Architecture, V5 Secrets.
 
 ## V1: A workload gets an identity you can watch
 
@@ -76,6 +76,40 @@ Each slice also ships its view, so the dashboard grows with the system: V1 Ident
 - Trace-id middleware copies an inbound id and creates one when absent.
 - Topology layout function is deterministic for the same node set.
 
+## V2b: agents arrive, and the playground gets a front door
+
+**Delivers:** R10 (baseline), R11, R13 (partial)
+
+**Build plan**
+
+1. `records-mcp`: MCP server with `list_patients`, `get_patient`, `update_patient`, `delete_patient`, calling `records-api`. No protection.
+2. `agent` workload in namespace `agents`, scripted, with a naive mode that obeys injected instructions (labelled as a simulation).
+3. Two attacks in the catalogue: `mcp-no-identity` and `agent-prompt-injection` (plants a poisoned record and a decoy, runs the agent, checks whether the decoy was deleted, cleans up).
+4. Headlamp with a read-only token, and the Explore view with live up/down checks.
+5. Zensical site with a landing page and tutorial pages for V1, V2 and V2b, built on PRs and deployed from `main`.
+6. Measure memory with everything running and record it.
+
+**Demo:** In Attack lab, run "Let an agent summarise a poisoned record". It reports `succeeds`, and Topology shows `agent → records-mcp → records-api` ending in a delete the user never asked for. Open Explore, follow the link into Headlamp, paste a token, and see the same pods in `clinic`.
+
+### Test plan
+
+#### End-to-end
+
+- With no layers on, both new attacks report `succeeds`, and the decoy record is gone only after the injection run.
+- Explore shows each tool up, and the Headlamp link opens a page whose login accepts a view-only token and lists the `clinic` pods.
+- Headlamp with the view-only token cannot read Secrets and offers no delete action on a pod.
+- The docs site builds with `zensical build` and its landing page lists V1, V2 and V2b.
+
+#### Integration
+
+- The MCP server's tools return what `records-api` holds, and the agent's task result names the tools it called.
+- `GET /links` reports a stopped service as down within 5 seconds.
+
+#### Unit
+
+- The naive agent follows an `ASSISTANT INSTRUCTION:` line and ignores the same text without the prefix.
+- Link-check result formatting.
+
 ## V3: Identity-based mTLS and the layer switch
 
 **Delivers:** R2, R6 (identity and mtls layers), R7 (partial)
@@ -85,7 +119,7 @@ Each slice also ships its view, so the dashboard grows with the system: V1 Ident
 1. Services use their SVIDs for mTLS on service-to-service calls and extract the caller's SPIFFE ID.
 2. Authorisation table per service (caller SPIFFE ID → routes), with `off`, `audit`, `enforce`.
 3. Layer controller and ConfigMap-based modes, with the narrow RBAC from ADR-0005.
-4. Layer control view with per-layer switch and a "what this changes" note.
+4. Layer control view with per-layer switch and a "what this changes" note, and the Architecture view showing the layers and their current modes.
 5. Request trace view: step through one trace across layers.
 6. Add attacks: call from `billing` on a forbidden route, replay an expired JWT-SVID.
 7. Exercise `exercises/v3-mtls.md`: switch `mtls` to `audit`, predict what the log shows, then `enforce`.
@@ -208,6 +242,34 @@ Each slice also ships its view, so the dashboard grows with the system: V1 Ident
 #### Unit
 
 - Claim extraction maps Keycloak roles to route permissions.
+
+## V6b: agents with their own identity and limited tools
+
+**Delivers:** R10 (complete)
+
+**Build plan**
+
+1. The agent gets its own identity (SPIFFE ID) and acts on behalf of a Keycloak user with a delegated token.
+2. `records-mcp` checks the delegated token and limits each tool by scope: the agent can read the signed-in user's patients and cannot delete.
+3. Add attacks: an agent asks for more than its scope, and a stolen delegated token is replayed from another pod.
+4. Agent rows join the attack matrix.
+
+**Demo:** Rerun the prompt-injection attack with the user and agent layers enforcing. The agent still reads the poisoned record, tries the delete, and is refused for lacking the scope, with the refusal visible in the Request trace.
+
+### Test plan
+
+#### End-to-end
+
+- With agent scope enforcement on, the injection attack is stopped by `user` and the decoy survives. With it off, the decoy is deleted.
+- A token minted for one agent is refused when presented by another workload.
+
+#### Integration
+
+- `records-mcp` rejects an expired, wrong-audience or missing delegated token.
+
+#### Unit
+
+- Scope-to-tool table allows and denies each (scope, tool) pair.
 
 ## V7: Defence in depth, end to end
 
