@@ -63,3 +63,16 @@ def test_an_svid_serial_is_only_recorded_once():
     with TestClient(create_app(store, sources=(source,))):
         pass
     assert len(store.since(0)) == 1
+
+
+def test_startup_log_backfill_is_deduped_against_the_store():
+    store = Store()
+    backlog = [LOG, {**LOG, "serial": "cd34"}, LOG]
+
+    async def source(emit):
+        for line in backlog:
+            emit(from_workload_log(line))
+
+    with TestClient(create_app(store, sources=(source,))):
+        pass
+    assert [e["evidence"]["serial"] for e in store.since(0)] == ["ab12", "cd34"]

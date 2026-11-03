@@ -6,7 +6,7 @@ The dashboard is the point. It shows identities rotating, requests being allowed
 
 > **The concepts transfer to the real pattern. The manifests don't.** This uses upstream charts on k3d, not the Red Hat builds on OpenShift with GitOps. Several configurations are deliberately weak when a layer is off. Run it on localhost only.
 
-Status: slice V1 in progress. The plan is in [PLAN.md](PLAN.md), the build order in [SLICES.md](SLICES.md), and the reasons in [docs/adr/](docs/adr/).
+Status: slice V1 (workload identity and the Identity view) is built; the rest follow in order. The plan is in [PLAN.md](PLAN.md), the build order in [SLICES.md](SLICES.md), and the reasons in [docs/adr/](docs/adr/).
 
 ## Quick start
 
@@ -17,6 +17,16 @@ make up       # k3d cluster "ztp" plus SPIRE, about 2 minutes warm
 make status   # pods and memory
 make down     # delete everything
 ```
+
+To see identities rotate:
+
+```sh
+make echo       # two toy workloads that fetch SVIDs from SPIRE
+make observer   # event collector on :8765 (second terminal)
+cd web && npm install && npm run dev   # dashboard on :5173 (third terminal)
+```
+
+Try the first break-it exercise: `kubectl delete clusterspiffeid clinic`. The cards flip to "Registration removed", then run out of time and expire. `make spire` brings the registration back. The chart's catch-all ClusterSPIFFEID is switched off on purpose, so no registration means no identity.
 
 Memory baseline after `make up` (V1, SPIRE only): the k3d node uses about 0.9 GB. The budget for the full stack is 4 GB on an 8 GB host.
 

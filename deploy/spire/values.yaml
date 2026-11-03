@@ -6,3 +6,11 @@ global:
     trustDomain: playground.local
 tornjak-frontend:
   enabled: false
+spire-server:
+  controllerManager:
+    identities:
+      clusterSPIFFEIDs:
+        # The chart's catch-all (fallback) ID would keep issuing identities to any pod
+        # once the explicit ClusterSPIFFEID is removed. No registration should mean no identity.
+        default:
+          enabled: false

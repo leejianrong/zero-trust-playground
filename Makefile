@@ -42,9 +42,16 @@ echo: ## build and deploy the V1 spike workloads
 	kubectl --context $(CTX) apply -f deploy/clinic/echo.yaml
 	kubectl --context $(CTX) -n clinic rollout restart deploy/echo-a deploy/echo-b
 
-.PHONY: observer test
+.PHONY: observer test e2e hooks
 observer: ## run the observer on :8765 against the cluster
 	cd services/observer && uv run uvicorn --factory observer.app:create_app --port 8765
 
-test: ## fast no-infra tests and lint
+test: ## fast no-infra tests, lint and type-check
 	cd services/observer && uv run ruff check . && uv run pytest -q
+	cd web && npm run check && npm test
+
+e2e: ## browser tests against the live cluster (needs make up && make echo)
+	cd web && npx playwright test
+
+hooks: ## enable the pre-push hook
+	git config core.hooksPath .githooks

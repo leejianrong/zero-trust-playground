@@ -33,7 +33,7 @@ async def spire_entries(emit, interval=5):
 async def workload_logs(emit, selector="app in (echo-a,echo-b)"):
     while True:
         proc = await asyncio.create_subprocess_exec(
-            *KUBECTL, "-n", "clinic", "logs", "-f", "-l", selector, "--tail=1", "--max-log-requests=20",
+            *KUBECTL, "-n", "clinic", "logs", "-f", "-l", selector, "--tail=50", "--max-log-requests=20",
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
         async for raw in proc.stdout:
             text = raw.decode()

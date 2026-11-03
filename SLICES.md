@@ -18,7 +18,7 @@ Each slice also ships its view, so the dashboard grows with the system: V1 Ident
 6. Dashboard shell (design tokens, light/dark, nav) and the Identity view: SVID cards, expiry countdown, rotation history.
 7. Set the SVID TTL short (for example 2 minutes) so rotation is visible in a demo.
 
-**Demo:** `make up && make demo-v1` opens the dashboard. Two cards show `spiffe://playground.local/ns/clinic/sa/echo-a` and `echo-b` with counting-down TTLs. A card's serial changes and a new row appears in its history when it rotates. `kubectl delete` of a registration entry makes that card go stale within the TTL.
+**Demo:** `make up && make demo-v1` opens the dashboard. Two cards show `spiffe://playground.local/ns/clinic/sa/echo-a` and `echo-b` with counting-down TTLs. A card's serial changes and a new row appears in its history when it rotates. Deleting the `clinic` ClusterSPIFFEID removes the registrations, the card shows "Registration removed", and the ring runs out within the TTL. Re-applying it restores the identity.
 
 **Rests on assumptions:** Q11 (py-spiffe suffices), Q13 (memory). If Q11 is wrong the slice grows by an ADR and a library swap, but no later slice changes shape.
 
@@ -28,7 +28,7 @@ Each slice also ships its view, so the dashboard grows with the system: V1 Ident
 
 - After `make up`, the Identity view shows both workloads with the expected SPIFFE IDs.
 - Within 2× the SVID TTL, each card shows a new serial and the history has two entries.
-- After deleting a registration entry, the card is marked expired and the workload's events show an identity failure.
+- After deleting the `clinic` ClusterSPIFFEID, the card shows "Registration removed" and then expires within the TTL. Re-applying restores it.
 - From a cold machine, `make up` reaches ready in under 10 minutes, and `make down` leaves no `k3d-ztp` containers.
 
 #### Integration
