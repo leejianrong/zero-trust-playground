@@ -17,8 +17,11 @@ spec:
           image: ztp/clinic:dev
           imagePullPolicy: Never
           command: [uvicorn, "clinic.web:app", --host, "0.0.0.0", --port, "8080"]
+          env:
+            - {name: SPIFFE_ENDPOINT_SOCKET, value: "unix:///spiffe-workload-api/spire-agent.sock"}
           ports: [{containerPort: 8080}]
-
+          volumeMounts: [{name: spiffe, mountPath: /spiffe-workload-api, readOnly: true}]
+      volumes: [{name: spiffe, csi: {driver: csi.spiffe.io, readOnly: true}}]
 ---
 apiVersion: v1
 kind: Service
@@ -48,9 +51,12 @@ spec:
           command: [uvicorn, "clinic.records_api:app", --host, "0.0.0.0", --port, "8080"]
           ports: [{containerPort: 8080}]
           env:
+            - {name: SPIFFE_ENDPOINT_SOCKET, value: "unix:///spiffe-workload-api/spire-agent.sock"}
             - {name: DB_HOST, value: postgres.clinic.svc}
             - name: DB_PASSWORD
               valueFrom: {secretKeyRef: {name: db-static, key: password}}
+          volumeMounts: [{name: spiffe, mountPath: /spiffe-workload-api, readOnly: true}]
+      volumes: [{name: spiffe, csi: {driver: csi.spiffe.io, readOnly: true}}]
 ---
 apiVersion: v1
 kind: Service
@@ -78,8 +84,11 @@ spec:
           image: ztp/clinic:dev
           imagePullPolicy: Never
           command: [uvicorn, "clinic.billing:app", --host, "0.0.0.0", --port, "8080"]
+          env:
+            - {name: SPIFFE_ENDPOINT_SOCKET, value: "unix:///spiffe-workload-api/spire-agent.sock"}
           ports: [{containerPort: 8080}]
-
+          volumeMounts: [{name: spiffe, mountPath: /spiffe-workload-api, readOnly: true}]
+      volumes: [{name: spiffe, csi: {driver: csi.spiffe.io, readOnly: true}}]
 ---
 apiVersion: v1
 kind: Service
@@ -162,7 +171,11 @@ spec:
           image: ztp/clinic:dev
           imagePullPolicy: Never
           command: [uvicorn, "clinic.records_mcp:app", --host, "0.0.0.0", --port, "8080"]
+          env:
+            - {name: SPIFFE_ENDPOINT_SOCKET, value: "unix:///spiffe-workload-api/spire-agent.sock"}
           ports: [{containerPort: 8080}]
+          volumeMounts: [{name: spiffe, mountPath: /spiffe-workload-api, readOnly: true}]
+      volumes: [{name: spiffe, csi: {driver: csi.spiffe.io, readOnly: true}}]
 ---
 apiVersion: v1
 kind: Service

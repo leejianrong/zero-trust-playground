@@ -24,7 +24,10 @@ spec:
           command: [uvicorn, "clinic.agent:app", --host, "0.0.0.0", --port, "8080"]
           ports: [{containerPort: 8080}]
           env:
+            - {name: SPIFFE_ENDPOINT_SOCKET, value: "unix:///spiffe-workload-api/spire-agent.sock"}
             - {name: AGENT_OBEYS_INJECTED_TEXT, value: "true"}
+          volumeMounts: [{name: spiffe, mountPath: /spiffe-workload-api, readOnly: true}]
+      volumes: [{name: spiffe, csi: {driver: csi.spiffe.io, readOnly: true}}]
 ---
 apiVersion: v1
 kind: Service

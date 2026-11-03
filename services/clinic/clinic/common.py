@@ -4,6 +4,7 @@ The X-Trace-Id and X-Caller headers are observability aids, not security control
 Any client can set them to anything."""
 import contextvars
 import json
+import os
 import sys
 import uuid
 
@@ -17,7 +18,23 @@ def emit(**fields):
     print(json.dumps(fields), file=sys.stdout, flush=True)
 
 
+def start_background(service: str):
+    """Start following the layer modes and fetching this workload's identity.
+
+    Both are no-ops outside the cluster, so unit tests need no setup."""
+    from clinic.identity import Identity
+    from clinic.modes import Modes
+
+    modes = Modes(service).start()
+    identity = Identity(service)
+    if os.environ.get("SPIFFE_ENDPOINT_SOCKET"):
+        identity.start()
+    return modes, identity
+
+
 def instrument(app: FastAPI, service: str) -> FastAPI:
+    modes, _identity = start_background(service)
+
     @app.middleware("http")
     async def trace_and_log(request: Request, call_next):
         trace = request.headers.get("x-trace-id") or uuid.uuid4().hex[:12]
@@ -31,7 +48,7 @@ def instrument(app: FastAPI, service: str) -> FastAPI:
 
     @app.get("/healthz")
     def healthz():
-        return {"ok": True}
+        return {"ok": True, "modes": modes.all()}
 
     return app
 

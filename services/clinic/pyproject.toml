@@ -8,6 +8,7 @@ dependencies = [
     "httpx>=0.27",
     "psycopg[binary]>=3.2",
     "mcp>=2.3.0",
+    "spiffe==0.4.0",
 ]
 
 [dependency-groups]

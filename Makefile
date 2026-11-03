@@ -62,7 +62,9 @@ hooks: ## enable the pre-push hook
 clinic: ## build and deploy the clinic app (web, records-api, billing, postgres)
 	docker build -q -t ztp/clinic:dev services/clinic
 	k3d image import ztp/clinic:dev -c $(CLUSTER_NAME)
-	kubectl --context $(CTX) apply -f deploy/clinic/app.yaml -f deploy/attacker.yaml -f deploy/agent.yaml
+	kubectl --context $(CTX) apply -f deploy/spire/clusterspiffeid-clinic.yaml
+	kubectl --context $(CTX) apply -f deploy/clinic/app.yaml -f deploy/attacker.yaml -f deploy/agent.yaml -f deploy/clinic/layer-modes.yaml
+	kubectl --context $(CTX) -n clinic get cm layer-modes >/dev/null 2>&1 || kubectl --context $(CTX) create -f deploy/clinic/layer-modes-default.yaml
 	kubectl --context $(CTX) -n clinic rollout restart deploy/web deploy/records-api deploy/billing deploy/records-mcp
 	kubectl --context $(CTX) -n agents rollout restart deploy/agent
 	kubectl --context $(CTX) -n attacker rollout restart deploy/attacker

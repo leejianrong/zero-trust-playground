@@ -7,9 +7,10 @@ from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.responses import JSONResponse
 
-from .common import client, emit, trace_var
+from .common import client, emit, start_background, trace_var
 
 RECORDS = os.environ.get("RECORDS_URL", "http://records-api.clinic.svc:8080")
+start_background("records-mcp")
 mcp = MCPServer("clinic-records", instructions="Look up and manage patient records for the Riverside Clinic.")
 
 

@@ -1,4 +1,4 @@
-# One SPIFFE ID per ServiceAccount in the clinic namespace, short-lived so
+# One SPIFFE ID per ServiceAccount in the clinic and agents namespaces (never attacker), short-lived so
 # rotation is visible in a demo (ADR-0004 / SLICES V1 step 7).
 apiVersion: spire.spiffe.io/v1alpha1
 kind: ClusterSPIFFEID
@@ -10,7 +10,7 @@ spec:
   podSelector:
     matchLabels: {}
   namespaceSelector:
-    matchLabels:
-      kubernetes.io/metadata.name: clinic
+    matchExpressions:
+      - {key: kubernetes.io/metadata.name, operator: In, values: [clinic, agents]}
   ttl: 2m
   jwtTtl: 2m

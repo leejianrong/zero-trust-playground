@@ -1,0 +1,21 @@
+# Each service reads the layer modes from one ConfigMap, with its own service account.
+# The Role names that ConfigMap, so no service can read any other (ADR-0010).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: layer-modes-reader, namespace: clinic}
+rules:
+  - apiGroups: [""]
+    resources: [configmaps]
+    resourceNames: [layer-modes]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: layer-modes-reader, namespace: clinic}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: layer-modes-reader}
+subjects:
+  - {kind: ServiceAccount, name: web, namespace: clinic}
+  - {kind: ServiceAccount, name: records-api, namespace: clinic}
+  - {kind: ServiceAccount, name: billing, namespace: clinic}
+  - {kind: ServiceAccount, name: records-mcp, namespace: clinic}
+  - {kind: ServiceAccount, name: agent, namespace: agents}
