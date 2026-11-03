@@ -112,37 +112,63 @@ Each slice also ships its tutorial page (ADR-0007) and its view, so the dashboar
 
 ## V3: Identity-based mTLS and the layer switch
 
-**Delivers:** R2, R6 (identity and mtls layers), R7 (partial)
+**Delivers:** R2, R6 (identity and mtls layers), R7 (partial), R12
+
+Sizing: about 36 points, twice a normal slice. Plan two build sessions: **session 1** is the backend (cards A to D) and ends with mTLS working and checked by curl and tests. **Session 2** is attacks, views and docs (E to J). Design decisions are in ADR-0010.
 
 **Build plan**
 
-1. Services use their SVIDs for mTLS on service-to-service calls and extract the caller's SPIFFE ID.
-2. Authorisation table per service (caller SPIFFE ID → routes), with `off`, `audit`, `enforce`.
-3. Layer controller and ConfigMap-based modes, with the narrow RBAC from ADR-0005.
-4. Layer control view with per-layer switch and a "what this changes" note, and the Architecture view showing the layers and their current modes.
-5. Request trace view: step through one trace across layers.
-6. Add attacks: call from `billing` on a forbidden route, replay an expired JWT-SVID.
-7. Exercise `exercises/v3-mtls.md`: switch `mtls` to `audit`, predict what the log shows, then `enforce`.
+1. **A. Spike (riskiest, first).** On uvicorn: a hot-swapped TLS context, the caller's SPIFFE ID read in-process, and a rotation across live connections. Decides whether ADR-0010 stands.
+2. **B. Identities for every workload.** SPIFFE CSI volume on each clinic and agent pod, a registration for the `agents` namespace, and one shared `spiffe` module (context builders, peer lookup) with unit tests that use generated certificates.
+3. **C. Layer modes.** A `layer-modes` ConfigMap, a Role limited to that one ConfigMap, a 2-second poller in each service, and `GET`/`PUT /layers` in the observer (refuses `mtls=enforce` without identity, emits a `layer_mode_changed` event).
+4. **D. mTLS and authorisation.** Two listeners per service, the allow-list (caller SPIFFE ID to routes), and `allow`, `would-deny` and `deny` events that carry the caller, route, mode and reason.
+5. **E. Attacks follow the real paths.** A "Summarise with AI" button on the clinic page and `POST /api/agent/summarise`, so the injection attack triggers the agent the way a user would. The catalogue's expected outcomes become rules per layer combination, and the observer works out `stopped_by` from deny events that share the attack's trace id.
+6. **F. Layer control view.** One switch per layer, each with a note on what it changes and any refusal reason.
+7. **G. Architecture view.** The pattern's layers, each layer's mode, what it protects, and which attacks it answers.
+8. **H. Request trace view.** Step through one trace across services and layers, linked from the clinic page's trace id and from each attack result.
+9. **I. Forged identity attack.** The attacker presents a self-signed certificate that claims to be `web`. Replaces the earlier "replay an expired SVID" idea, which needed a stolen certificate to be meaningful.
+10. **J. Matrix test, tutorial and how-to.** Attack by layer-mode e2e, the V3 tutorial page, and a break-it guide.
 
-**Demo:** In Layer control, set `mtls` to `enforce`. In Attack lab, "call records-api with no identity" flips from `succeeds` to `stopped_by: mtls`. The Request trace shows the handshake failing at the layer step. `billing` calling an allowed route still works, and a forbidden route gets a 403 naming `billing`'s SPIFFE ID.
+**Allow-list (what each service accepts)**
+
+| Service | Accepts, from | For |
+|---|---|---|
+| `records-api` | `web` | all `/patients` routes |
+| | `billing` | `GET /patients/{id}` |
+| | `records-mcp` | all `/patients` routes (V6b narrows this) |
+| `billing` | `web` | `GET /invoices/{id}` |
+| `records-mcp` | `agent` | the four tools |
+| `agent` | `web` | `POST /tasks/summarise` |
+| `web` | browsers | plain HTTP only until V6 |
+
+**Demo:** In Layer control, set `identity` to `on` and `mtls` to `audit`. Run the attacks: they still succeed, and the Request trace shows `would deny` with the reason. Switch to `enforce`: "Call records-api with no identity" and "Call the MCP server with no identity" flip to `stopped_by: mtls`, and the forged-identity attack is stopped at the handshake. The clinic page still works. The prompt-injection attack **still succeeds**, because the agent and the user are both legitimate. The Architecture view shows which layer answered what, and which attack nothing has answered yet.
+
+**Rests on assumptions:** ADR-0010 (the three unknowns the spike answers). If the caller lookup proves unreliable, switch to Hypercorn and its TLS extension, which costs one card.
 
 ### Test plan
 
 #### End-to-end
 
-- `mtls=enforce`: the no-identity attack is stopped by `mtls`, and normal `web` use still works.
-- `mtls=audit`: the same attack succeeds, and a deny-would-have-happened event is logged.
-- `mtls=off`: the attack succeeds and no authorisation events are emitted.
-- Flipping a mode from the UI takes effect within 5 seconds.
+- `mtls=enforce`: no-identity attacks on `records-api` and `records-mcp` are stopped by `mtls`, a forged identity is stopped at the handshake, and the clinic page still adds, edits and deletes a patient.
+- `mtls=audit`: the same attacks succeed and a `would deny` event names the reason and the attack's trace id.
+- `mtls=off`: the attacks succeed and no authorisation events appear.
+- With `mtls=enforce` the prompt-injection attack still succeeds, and the matrix expects that.
+- Flipping a mode from the UI changes behaviour within 5 seconds.
+- Setting `mtls=enforce` with `identity=off` is refused with a reason, and nothing changes.
+- A certificate rotation during a stream of requests loses none of them.
 
 #### Integration
 
-- The controller's service account cannot modify anything outside its permitted objects (assert a forbidden patch is rejected).
-- A service rereads its mode without restarting.
+- The allow-list returns the expected decision for each (caller, route, mode).
+- The 2-second poller picks up a changed ConfigMap, and a service keeps its last mode if the API is briefly unreachable.
+- A service's ServiceAccount cannot read any ConfigMap except `layer-modes`.
+- The caller lookup returns the right SPIFFE ID under concurrent connections and none after the connection closes.
 
 #### Unit
 
-- The authorisation table returns allow/deny for each (caller, route, mode) combination.
+- Context builders produce server and client contexts from a generated certificate and bundle.
+- The mode parser rejects unknown layers and modes.
+- Deny, would-deny and allow events validate against schema v1.
 
 ## V4: Default-deny network
 
