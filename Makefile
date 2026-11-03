@@ -58,7 +58,10 @@ e2e: ## browser tests against the live cluster (needs make up, echo, clinic and 
 hooks: ## enable the pre-push hook
 	git config core.hooksPath .githooks
 
-.PHONY: clinic web
+.PHONY: clinic web attack
+attack: ## run an attack from the attacker pod: make attack A=<name> (no A lists them)
+	@python3 scripts/attack.py $(A)
+
 clinic: ## build and deploy the clinic app (web, records-api, billing, postgres)
 	docker build -q -t ztp/clinic:dev services/clinic
 	k3d image import ztp/clinic:dev -c $(CLUSTER_NAME)

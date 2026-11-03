@@ -26,7 +26,7 @@ make observer   # event collector on :8765 (second terminal)
 cd web && npm install && npm run dev   # dashboard on :5173 (third terminal)
 ```
 
-Then deploy the clinic app and open the Topology and Attack lab views:
+Then deploy the clinic app:
 
 ```sh
 make clinic     # web, records-api, billing, postgres, plus the attacker pod
@@ -38,9 +38,9 @@ Open the clinic app itself, a small patient-records page where you can add, edit
 make web        # then browse to http://localhost:8081
 ```
 
-Every click there shows up on the dashboard's Topology view. The page prints the trace id of your last change, and `curl 'localhost:8765/events?follow=false&trace=<id>'` returns every hop that change took.
+The page prints the trace id of your last change, and `curl 'localhost:8765/events?follow=false&trace=<id>'` returns every hop that change took.
 
-With no layers on, every attack gets through. That is the baseline the next slices take apart.
+With no layers on, every attack gets through. Run them with `make attack` (list) and `make attack A=<name>`. That is the baseline the next slices take apart.
 
 Try the first break-it exercise: `kubectl delete clusterspiffeid clinic`. The cards flip to "Registration removed", then run out of time and expire. `make spire` brings the registration back. The chart's catch-all ClusterSPIFFEID is switched off on purpose, so no registration means no identity.
 

@@ -1,6 +1,6 @@
 # ADR-0004: The dashboard is the primary teaching surface, fed by one normalised event stream
 
-- Status: Accepted
+- Status: Accepted (amended, see the note under Views)
 - Date: 2026-11-03
 - Deciders: user, agent
 
@@ -33,6 +33,8 @@ Sources: each toy service logs a structured event per request and per denial; th
 | Attack lab | What stops this attack? Run a named attack, see which layer blocked it, or that none did. |
 | Layer control | What changes if I turn this layer off? Per-layer off/audit/enforce switch (ADR-0005). |
 | Secrets | Which credentials exist right now, who holds them, when do they die? |
+
+**Amended after the V3 user test.** The Topology and Attack lab views were removed. Topology only ever drew allowed traffic and gave no lesson the Architecture view will not give better. Attacks now run from the command line (`make attack`), and their evidence is the command output plus the clinic page or Headlamp. The observer still serves `/attacks`, so the CLI and the tests share one runner. The Identity cards are compact and collapse their detail by default.
 
 **Quality bar.** Defined in PLAN requirement R7: Playwright tests drive every view against the real cluster, assert specific events and states, and save screenshots. UI work uses the `frontend-design` skill and a token-based design system with light and dark themes. Colour never carries meaning alone (verdicts also get an icon and a label).
 

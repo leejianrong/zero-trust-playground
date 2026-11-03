@@ -10,6 +10,7 @@ Every command runs from the repository root. `make` with no target prints this l
 | `make status` | Shows every pod and the node's memory use |
 | `make echo` | Builds and deploys the two identity demo workloads |
 | `make clinic` | Builds the image and deploys `web`, `records-api`, `billing`, `records-mcp`, Postgres, the `agent` and the `attacker` |
+| `make attack A=<name>` | Runs an attack from the attacker pod and prints the outcome and evidence. With no `A`, lists the attacks. Needs `make observer` |
 | `make web` | Port-forwards the clinic app to <http://localhost:8081> |
 | `make observer` | Runs the observer on port 8765 |
 | `make headlamp` | Installs Headlamp with a read-only login |
