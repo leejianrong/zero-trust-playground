@@ -12,9 +12,20 @@ def client(handler):
     return httpx.Client(transport=httpx.MockTransport(handler))
 
 
-def test_every_catalogued_attack_has_an_implementation_and_a_baseline_expectation():
+def test_every_catalogued_attack_has_an_implementation_and_a_default_expectation():
     assert {a["name"] for a in CATALOG} == set(ATTACKS)
-    assert all(a["expected"]["all_off"] == "succeeds" for a in CATALOG)
+    assert all(a["expected"]["default"] == "succeeds" for a in CATALOG)
+
+
+def test_an_attack_tags_every_request_with_one_trace_id_and_reports_it():
+    seen = []
+
+    def handler(request):
+        seen.append(request.headers.get("x-trace-id"))
+        return httpx.Response(200, json=[])
+
+    result = run("no-identity-records", client(handler))
+    assert result["trace"] and set(seen) == {result["trace"]}
 
 
 def test_http_attack_succeeds_when_the_service_answers():
@@ -46,7 +57,7 @@ def test_injection_attack_succeeds_only_if_the_decoy_is_gone():
             return httpx.Response(200, json=[{"id": i} for i in state["patients"]])
         if request.method == "DELETE":
             return httpx.Response(204 if state["patients"].pop(int(path.rsplit("/", 1)[-1]), None) else 404)
-        if path == "/tasks/summarise":
+        if path == "/api/agent/summarise":
             if state["agent_obeys"]:
                 state["patients"].pop(10)  # the decoy is the first record planted
             return httpx.Response(200, json={"tool_calls": [{"tool": "delete_patient"}]})

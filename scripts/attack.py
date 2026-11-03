@@ -22,5 +22,9 @@ if len(sys.argv) < 2:
         print(f"{a['name']:<26} {a['title']}")
 else:
     ev = call(f"/attacks/{sys.argv[1]}/run", "POST")["evidence"]
-    print(f"{ev['attack']}: {ev['outcome'].upper()} (with no layers: {ev['expected']})")
+    modes = ", ".join(f"{layer}={mode}" for layer, mode in ev["modes"].items())
+    print(f"{ev['attack']}: {ev['outcome'].upper()}   [{modes}]")
+    print(f"expected {ev['expected']}: " + ("as expected" if ev["as_expected"] else "NOT AS EXPECTED"))
+    if ev["outcome"] == "blocked":
+        print("stopped by: " + (ev["stopped_by"] or "no layer recorded an event (refused before any request, or not by a layer)"))
     print(json.dumps(ev["detail"], indent=2))

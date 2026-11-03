@@ -52,6 +52,11 @@
     <p id="status" role="status"></p>
     <p class="trace">Trace id of your last change: <span id="trace">none yet</span></p>
   </section>
+  <section aria-labelledby="ai-h">
+    <h2 id="ai-h">Summarise with AI</h2>
+    <button id="summarise" type="button">Summarise with AI</button>
+    <p id="summary" role="status"></p>
+  </section>
 </main>
 
 <dialog id="edit" aria-labelledby="edit-h">
@@ -94,6 +99,16 @@ async function load() {
   }
   if (!patients.length) status("No patients yet. Add one above.");
 }
+
+$("#summarise").onclick = async () => {
+  $("#summary").textContent = "Reading the records…";
+  try {
+    const task = await api("POST", "/api/agent/summarise");
+    const calls = task.tool_calls.map((c) => c.tool).join(", ");
+    $("#summary").textContent = `${task.summary}. The agent used: ${calls}.`;
+    await load();
+  } catch (e) { $("#summary").textContent = e.message; }
+};
 
 $("#add").onsubmit = async (e) => {
   e.preventDefault();
