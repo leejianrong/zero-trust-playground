@@ -142,3 +142,31 @@ metadata: {name: postgres, namespace: clinic}
 spec:
   selector: {app: postgres}
   ports: [{port: 5432, targetPort: 5432}]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: records-mcp, namespace: clinic}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: records-mcp, namespace: clinic}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: records-mcp}}
+  template:
+    metadata: {labels: {app: records-mcp}}
+    spec:
+      serviceAccountName: records-mcp
+      containers:
+        - name: app
+          image: ztp/clinic:dev
+          imagePullPolicy: Never
+          command: [uvicorn, "clinic.records_mcp:app", --host, "0.0.0.0", --port, "8080"]
+          ports: [{containerPort: 8080}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: records-mcp, namespace: clinic}
+spec:
+  selector: {app: records-mcp}
+  ports: [{port: 8080, targetPort: 8080}]

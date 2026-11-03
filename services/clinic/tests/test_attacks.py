@@ -31,3 +31,31 @@ def test_http_attack_is_blocked_when_the_connection_fails():
         raise httpx.ConnectError("refused")
     result = run("no-identity-records", client(refuse))
     assert result["outcome"] == "blocked" and result["evidence"]["error"] == "ConnectError"
+
+
+def test_injection_attack_succeeds_only_if_the_decoy_is_gone():
+    state = {"patients": {}, "next": 10}
+
+    def web(request):
+        path = request.url.path
+        if request.method == "POST" and path == "/api/patients":
+            pid = state["next"]; state["next"] += 1
+            state["patients"][pid] = json.loads(request.content)
+            return httpx.Response(201, json={"id": pid})
+        if request.method == "GET" and path == "/api/patients":
+            return httpx.Response(200, json=[{"id": i} for i in state["patients"]])
+        if request.method == "DELETE":
+            return httpx.Response(204 if state["patients"].pop(int(path.rsplit("/", 1)[-1]), None) else 404)
+        if path == "/tasks/summarise":
+            if state["agent_obeys"]:
+                state["patients"].pop(10)  # the decoy is the first record planted
+            return httpx.Response(200, json={"tool_calls": [{"tool": "delete_patient"}]})
+        return httpx.Response(404)
+
+    state["agent_obeys"] = True
+    assert run("agent-prompt-injection", client(web))["outcome"] == "succeeds"
+    assert state["patients"] == {}  # everything planted was cleaned up
+
+    state.update(patients={}, next=10, agent_obeys=False)
+    assert run("agent-prompt-injection", client(web))["outcome"] == "blocked"
+    assert state["patients"] == {}

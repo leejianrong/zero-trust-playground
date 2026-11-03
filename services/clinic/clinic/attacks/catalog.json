@@ -25,5 +25,23 @@
       "all_off": "succeeds"
     },
     "target": "billing"
+  },
+  {
+    "name": "mcp-no-identity",
+    "title": "Call the MCP server with no identity",
+    "description": "From the attacker pod, connect to records-mcp directly and ask it to list every patient. No agent, no person, no credential.",
+    "target": "records-mcp",
+    "expected": {
+      "all_off": "succeeds"
+    }
+  },
+  {
+    "name": "agent-prompt-injection",
+    "title": "Let an agent summarise a poisoned record",
+    "description": "A user-entered diagnosis hides an instruction. The simulated agent summarises the records, obeys it, and deletes a decoy patient it was never asked to touch.",
+    "target": "records-mcp",
+    "expected": {
+      "all_off": "succeeds"
+    }
   }
 ]

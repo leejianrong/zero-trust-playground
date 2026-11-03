@@ -76,7 +76,7 @@
           <rect width={NW} height={NH} rx="10" />
           <text x={NW / 2} y="22" text-anchor="middle" class="nname">{n}</text>
           <text x={NW / 2} y="40" text-anchor="middle" class="nsub">
-            {#if graph.registered[n]}registered, unused{:else if n === "attacker"}no identity{:else if n === "user"}browser{:else}no registration{/if}
+            {#if graph.registered[n]}registered, unused{:else if n === "attacker"}no identity{:else if n === "user"}browser{:else if n === "agent"}simulated agent, no identity{:else}no registration{/if}
           </text>
         </g>
       {/each}
