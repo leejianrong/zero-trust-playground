@@ -7,3 +7,5 @@ dist/
 e2e/screenshots/
 web/test-results/
 web/playwright-report/
+site/
+.docs-venv/

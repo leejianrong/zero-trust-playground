@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-from . import adapters
+from . import adapters, links
 from .normalize import event
 from .store import Store
 
@@ -18,7 +18,8 @@ async def kubectl_exec(namespace, deploy, *cmd) -> str:
     return await adapters.run(*adapters.KUBECTL, "-n", namespace, "exec", f"deploy/{deploy}", "--", *cmd)
 
 
-def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl_exec, catalog=CATALOG):
+def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl_exec, catalog=CATALOG,
+               probe_url=links.probe):
     store = store or Store("observer.db")
     attacks = {a["name"]: a for a in json.loads(Path(catalog).read_text())}
 
@@ -83,6 +84,10 @@ def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl
         if out.strip() != "200":
             raise HTTPException(502, "web did not answer; is `make clinic` deployed?")
         return {"ok": True, "patient": patient}
+
+    @app.get("/links")
+    async def tool_links():
+        return await links.check(probe_url=probe_url)
 
     @app.get("/healthz")
     def healthz():

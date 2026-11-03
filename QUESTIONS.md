@@ -16,7 +16,7 @@ None. Round 1 closed on 2026-11-03.
 | Q2 | Guided exercises or a working system? | DECIDED | Working system, attacks, layer toggles, break-it exercises | ADR-0002 |
 | Q3 | GitOps, runtime monitoring, compliance, supply chain? | DECIDED | Out. Runtime kill is stretch slice V8 | ADR-0003 |
 | Q4 | Relationship to agent-auth-lab | DECIDED | Standalone, closing note on where agents fit | ADR-0006 |
-| Q5 | Output format | DECIDED | Markdown in repo, no docs site | ADR-0006 |
+| Q5 | Output format | DECIDED | Reversed on 2026-11-03: Zensical tutorial site | ADR-0007 |
 | Q6 | Dashboard quality bar | DECIDED | First-class deliverable, six views, tested end to end, light/dark (user requirement) | ADR-0004, PLAN R7 |
 | Q7 | How layers are switched | ASSUMED | Controller with narrow RBAC, off/audit/enforce | ADR-0005 |
 | Q8 | Event model | ASSUMED | One versioned schema, SSE, SQLite replay | ADR-0004 |
@@ -29,6 +29,11 @@ None. Round 1 closed on 2026-11-03.
 | Q15 | Network `audit` mode | ASSUMED | Unavailable on k3s, UI says so | ADR-0005 |
 | Q16 | Secrets handling | ASSUMED | Throwaway, labelled, localhost-only credentials | PLAN §Scope |
 | Q17 | Versioning | ASSUMED | Pin everything in `versions.env`; event schema versioned `v: 1` | ADR-0004 |
+| Q20 | Agent: real LLM or scripted? | DECIDED | Scripted and deterministic; naive mode simulates obeying injected text; real MCP clients can connect as an optional exercise | ADR-0008 |
+| Q21 | When does agent work start? | DECIDED | Baseline in V2b, before V3, so every layer is tested against the agent too | SLICES V2b |
+| Q22 | Cluster dashboard | DECIDED | Headlamp, view-only token by default, admin contrast available. Kubernetes Dashboard is archived | ADR-0009 |
+| Q23 | Docs site | DECIDED | Zensical tutorial site on Pages (reverses Q5) | ADR-0007 |
+| Q24 | Architecture view | DECIDED | New dashboard view built in V3 | ADR-0009 |
 | Q18 | SPIRE federation | DEFERRED | Later playground | n/a |
 | Q19 | Offline operation | DEFERRED | First run needs internet; optional `k3d image import` pre-pull | ADR-0001 |
 

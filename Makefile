@@ -46,12 +46,13 @@ echo: ## build and deploy the V1 spike workloads
 observer: ## run the observer on :8765 against the cluster
 	cd services/observer && uv run uvicorn --factory observer.app:create_app --port 8765
 
-test: ## fast no-infra tests, lint and type-check
+test: ## fast no-infra tests, lint, type-check and docs checks
+	python3 scripts/check_docs_commands.py
 	cd services/observer && uv run ruff check . && uv run pytest -q
 	cd services/clinic && uv run ruff check . && uv run pytest -q
 	cd web && npm run check && npm test
 
-e2e: ## browser tests against the live cluster (needs make up && make echo)
+e2e: ## browser tests against the live cluster (needs make up, echo, clinic and headlamp)
 	cd web && npx playwright test
 
 hooks: ## enable the pre-push hook
@@ -61,11 +62,38 @@ hooks: ## enable the pre-push hook
 clinic: ## build and deploy the clinic app (web, records-api, billing, postgres)
 	docker build -q -t ztp/clinic:dev services/clinic
 	k3d image import ztp/clinic:dev -c $(CLUSTER_NAME)
-	kubectl --context $(CTX) apply -f deploy/clinic/app.yaml -f deploy/attacker.yaml
-	kubectl --context $(CTX) -n clinic rollout restart deploy/web deploy/records-api deploy/billing
+	kubectl --context $(CTX) apply -f deploy/clinic/app.yaml -f deploy/attacker.yaml -f deploy/agent.yaml
+	kubectl --context $(CTX) -n clinic rollout restart deploy/web deploy/records-api deploy/billing deploy/records-mcp
+	kubectl --context $(CTX) -n agents rollout restart deploy/agent
 	kubectl --context $(CTX) -n attacker rollout restart deploy/attacker
-	kubectl --context $(CTX) -n clinic rollout status deploy/postgres deploy/web deploy/records-api deploy/billing --timeout=180s
+	kubectl --context $(CTX) -n clinic rollout status deploy/postgres deploy/web deploy/records-api deploy/billing deploy/records-mcp --timeout=180s
+	kubectl --context $(CTX) -n agents rollout status deploy/agent --timeout=120s
 	kubectl --context $(CTX) -n attacker rollout status deploy/attacker --timeout=120s
 
 web: ## open the clinic app at http://localhost:8081 (port-forward, Ctrl-C to stop)
 	kubectl --context $(CTX) -n clinic port-forward svc/web 8081:8080
+
+.PHONY: headlamp headlamp-token headlamp-ui docs docs-build
+headlamp: ## install Headlamp (cluster dashboard) with a read-only login
+	@helm repo add headlamp https://kubernetes-sigs.github.io/headlamp/ >/dev/null 2>&1 || true
+	@helm repo update headlamp >/dev/null
+	helm --kube-context $(CTX) upgrade --install headlamp headlamp/headlamp --version $(HEADLAMP_CHART) \
+	  -n headlamp --create-namespace --wait --timeout 3m
+	kubectl --context $(CTX) apply -f deploy/headlamp/rbac.yaml
+
+headlamp-token: ## print a login token for Headlamp (ROLE=admin for the cluster-admin contrast)
+	@scripts/headlamp-token.sh
+
+headlamp-ui: ## open Headlamp at http://localhost:4466 (port-forward, Ctrl-C to stop)
+	kubectl --context $(CTX) -n headlamp port-forward svc/headlamp 4466:80
+
+DOCS_PY := .docs-venv/bin/python
+$(DOCS_PY):
+	uv venv .docs-venv --python 3.12 --allow-existing
+	uv pip install zensical --python $(DOCS_PY)
+
+docs: $(DOCS_PY) ## serve the tutorial at http://localhost:8000
+	.docs-venv/bin/zensical serve
+
+docs-build: $(DOCS_PY) ## build the tutorial (strict) into site/
+	.docs-venv/bin/zensical build --clean --strict

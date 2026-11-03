@@ -69,13 +69,17 @@ async def _parse_postgres(text):
     return from_postgres_line(text, await pod_by_ip())
 
 
+# Services whose request logs become Topology events, by namespace. A test checks this against the
+# deployed manifests, so a new service cannot be added and quietly left out.
+TRAFFIC = {"clinic": ["web", "records-api", "billing", "records-mcp"], "agents": ["agent"]}
+
 # Identity workloads are backfilled (the current SVID matters on startup; emit dedupes by serial).
 # Traffic is only interesting live, and has no key to dedupe on, so it starts from now.
 workload_logs = functools.partial(tail_logs, namespace="clinic", selector="app in (echo-a,echo-b)",
                                   parse=_parse_log, tail=50)
-service_logs = functools.partial(tail_logs, namespace="clinic", selector="app in (web,records-api,billing)",
-                                 parse=_parse_log, tail=0)
+service_logs = [functools.partial(tail_logs, namespace=ns, selector=f"app in ({','.join(apps)})",
+                                  parse=_parse_log, tail=0) for ns, apps in TRAFFIC.items()]
 postgres_connections = functools.partial(tail_logs, namespace="clinic", selector="app=postgres",
                                          parse=_parse_postgres, tail=0)
 
-ALL = (spire_entries, workload_logs, service_logs, postgres_connections)
+ALL = (spire_entries, workload_logs, *service_logs, postgres_connections)

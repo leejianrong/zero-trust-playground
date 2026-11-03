@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import AttackLab from "./lib/AttackLab.svelte";
+  import Explore from "./lib/Explore.svelte";
   import { reduceResults, type Attack, type Results } from "./lib/attacks";
   import { emptyGraph, reduceGraph, type Graph } from "./lib/graph";
   import { reduce, type Cards, type Ev } from "./lib/identity";
@@ -8,14 +9,15 @@
   import Topology from "./lib/Topology.svelte";
 
   const VIEWS = [
+    { id: "explore", label: "Explore", blurb: "Every tool in the playground, what it is for, and whether it is running." },
     { id: "identity", label: "Identity", blurb: "Every workload gets a short-lived SPIFFE identity from SPIRE and swaps it for a fresh one before it runs out." },
     { id: "topology", label: "Topology", blurb: "Who talks to whom right now. Lines fade when a path goes quiet." },
     { id: "attacks", label: "Attack lab", blurb: "Each attack runs from the attacker pod. With every layer off, all of them should get through. That is the baseline the next slices take apart." },
   ] as const;
   type ViewId = (typeof VIEWS)[number]["id"];
 
-  const fromHash = (): ViewId => (VIEWS.find((v) => `#${v.id}` === location.hash)?.id ?? "identity");
-  let view = $state<ViewId>("identity");
+  const fromHash = (): ViewId => (VIEWS.find((v) => `#${v.id}` === location.hash)?.id ?? "explore");
+  let view = $state<ViewId>("explore");
   let cards = $state<Cards>({});
   let graph = $state<Graph>(emptyGraph());
   let results = $state<Results>({});
@@ -76,7 +78,9 @@
     <p>{current.blurb}</p>
   </div>
 
-  {#if view === "identity"}
+  {#if view === "explore"}
+    <Explore />
+  {:else if view === "identity"}
     {#if list.length === 0}
       <section class="empty">
         <h2>No identities yet</h2>

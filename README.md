@@ -6,7 +6,7 @@ The dashboard is the point. It shows identities rotating, requests being allowed
 
 > **The concepts transfer to the real pattern. The manifests don't.** This uses upstream charts on k3d, not the Red Hat builds on OpenShift with GitOps. Several configurations are deliberately weak when a layer is off. Run it on localhost only.
 
-Status: slices V1 (workload identity) and V2 (the unprotected clinic app and its first attacks) are built; the rest follow in order. The plan is in [PLAN.md](PLAN.md), the build order in [SLICES.md](SLICES.md), and the reasons in [docs/adr/](docs/adr/).
+Status: slices V1 (workload identity) and V2 (the unprotected clinic app and its first attacks) are built; the rest follow in order. The tutorial is published at <https://leejianrong.github.io/zero-trust-playground/> (or run `make docs`). The plan is in [PLAN.md](PLAN.md), the build order in [SLICES.md](SLICES.md), and the reasons in [docs/adr/](docs/adr/).
 
 ## Quick start
 
@@ -44,6 +44,17 @@ With no layers on, every attack gets through. That is the baseline the next slic
 
 Try the first break-it exercise: `kubectl delete clusterspiffeid clinic`. The cards flip to "Registration removed", then run out of time and expire. `make spire` brings the registration back. The chart's catch-all ClusterSPIFFEID is switched off on purpose, so no registration means no identity.
 
-Memory baseline after `make up` (V1, SPIRE only): the k3d node uses about 0.9 GB. The budget for the full stack is 4 GB on an 8 GB host.
+Memory (measured): the k3d node uses about 0.9 GB after `make up`, and 1.6 GB with the clinic app, the agent and Headlamp running (Headlamp itself is about 17 MB). The budget for the full stack is 4 GB on an 8 GB host.
+
+The cluster dashboard is Headlamp:
+
+```sh
+make headlamp                       # install it with a read-only login
+make headlamp-ui                    # http://localhost:4466 (second terminal)
+make headlamp-token                 # print a one-hour read-only token to paste in
+ROLE=admin make headlamp-token      # the cluster-admin contrast
+```
+
+With the read-only token you can see every pod but not the Secrets, and there is no delete button. With the admin token you get terminals, edit and delete. A dashboard can do exactly what its identity can do, which is the same lesson as the rest of this playground.
 
 All chart and image versions are pinned in `versions.env`.

@@ -37,8 +37,8 @@ export function reduceGraph(g: Graph, ev: Ev & { dst?: string | null; verdict?: 
 
 // Fixed slots so the picture is the same every time and learners can build a memory of it.
 const SLOTS: Record<string, [number, number]> = {
-  user: [90, 110], attacker: [90, 440], web: [290, 190], billing: [540, 100],
-  "records-api": [540, 350], postgres: [810, 440],
+  user: [90, 90], agent: [90, 265], attacker: [90, 440], web: [290, 190], billing: [540, 90],
+  "records-mcp": [720, 215], "records-api": [540, 350], postgres: [810, 440],
 };
 
 export function layout(names: string[]): Record<string, { x: number; y: number }> {
