@@ -152,3 +152,20 @@ def test_events_can_be_filtered_to_one_trace_even_past_the_page_size():
     store.append(event("app", "http_request", trace="wanted"))
     body = TestClient(create_app(store, sources=())).get("/events?follow=false&trace=wanted").text
     assert body.count("data:") == 1
+
+
+def test_links_report_which_tools_are_answering():
+    async def probe_url(url):
+        return "8081" in url  # only the clinic app is "running"
+
+    body = TestClient(create_app(Store(), sources=(), probe_url=probe_url)).get("/links").json()
+    state = {link["id"]: link["up"] for link in body}
+    assert state["clinic"] is True and state["headlamp"] is False
+    assert all(link["start"] and link["purpose"] for link in body)
+
+
+def test_the_real_probe_calls_a_closed_port_down():
+    import asyncio
+
+    from observer.links import probe
+    assert asyncio.run(probe("http://127.0.0.1:9")) is False

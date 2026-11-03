@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
 const IDS = ["echo-a", "echo-b"].map((sa) => `spiffe://playground.local/ns/clinic/sa/${sa}`);
 
 test("Identity view shows both workloads with a live countdown", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/#identity");
   for (const id of IDS) {
     await expect(page.getByLabel(`SPIFFE ID ${id}`)).toBeVisible({ timeout: 30_000 });
   }
@@ -17,7 +17,7 @@ test("Identity view shows both workloads with a live countdown", async ({ page }
 });
 
 test("a rotation shows a new current serial at the top of the history", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/#identity");
   const card = page.locator("article", { hasText: "echo-a" });
   const current = card.locator("li.now .data").first();
   await expect(current).toHaveText(/^[0-9a-f]{8}$/, { timeout: 30_000 });
@@ -34,7 +34,7 @@ for (const theme of ["light", "dark"] as const) {
   test(`screenshot, ${theme} theme`, async ({ page }) => {
     await page.emulateMedia({ colorScheme: theme });
     await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto("/");
+    await page.goto("/#identity");
     await expect(page.getByLabel(`SPIFFE ID ${IDS[0]}`)).toBeVisible({ timeout: 30_000 });
     await page.waitForTimeout(1200);
     await page.screenshot({ path: `e2e/screenshots/identity-${theme}.png`, fullPage: true });
@@ -44,7 +44,7 @@ for (const theme of ["light", "dark"] as const) {
 test("removing the registration leaves the identity to expire", async ({ page }) => {
   test.setTimeout(300_000);
   const kubectl = (...args: string[]) => execFileSync("kubectl", ["--context", "k3d-ztp", ...args], { cwd: ".." });
-  await page.goto("/");
+  await page.goto("/#identity");
   const card = page.locator("article", { hasText: "echo-b" });
   await expect(card.getByText("Identity valid")).toBeVisible({ timeout: 30_000 });
   try {
