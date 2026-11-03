@@ -22,7 +22,7 @@ None. Round 1 closed on 2026-11-03.
 | Q8 | Event model | ASSUMED | One versioned schema, SSE, SQLite replay | ADR-0004 |
 | Q9 | Toy app | ASSUMED | Clinic records: `web`, `records-api`, `billing`, Postgres, `attacker` | PLAN §Shape |
 | Q10 | App language | ASSUMED | Python 3.12 + FastAPI | ADR-0006 |
-| Q11 | SPIFFE client library | ASSUMED | `py-spiffe`; fall back to `spiffe-helper` or Go | ADR-0006, V1 spike |
+| Q11 | SPIFFE client library | DECIDED | `py-spiffe` (PyPI `spiffe` 0.4.0). V1 spike confirmed X.509 and JWT SVID fetch and rotation callbacks against live SPIRE. mTLS contexts (V3) still unverified | ADR-0006, AAL-21 |
 | Q12 | Vault licence | ASSUMED | Vault OSS (BSL) fine locally; OpenBao as swap | PLAN §Assumed |
 | Q13 | Memory | ASSUMED | Full stack under ~4 GB on this 8 GB host (about 5 GB free when checked) | ADR-0001, V6 |
 | Q14 | Upstream vs Red Hat builds | ASSUMED | Upstream only | ADR-0003 |
