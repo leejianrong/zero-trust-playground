@@ -71,9 +71,13 @@ def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl
 
         return StreamingResponse(stream(), media_type="text/event-stream")
 
-    async def stopped_by(trace: str | None) -> str | None:
+    async def stopped_by(trace: str | None, phase: str | None, target: str, modes: dict) -> str | None:
         """The layer of the first deny recorded under the attack's trace id. Workload logs reach the store a moment
-        after the request, so look a few times. A refusal at the TLS handshake has no request, so no event."""
+        after the request, so look a few times. A refusal at the TLS handshake has no request, so no event.
+        A refused connection never reaches a workload, so there is nothing to wait for: if the network layer is
+        enforced and covers the target, name it, as an inference (ADR-0011)."""
+        if phase == "connect":
+            return "network (inferred)" if modes["network"] == "enforce" and net.protects(target) else None
         for _ in range(6 if trace else 0):
             denies = [e for e in store.since(trace=trace) if e["verdict"] == "deny" and e["kind"] != "attack_result"]
             if denies:
@@ -98,7 +102,7 @@ def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl
         modes = await current_modes()
         outcome, trace = result["outcome"], result.get("trace")
         expected = layers.expected(attack, modes)
-        extra = {"stopped_by": await stopped_by(trace)} if outcome == "blocked" else {}
+        extra = {"stopped_by": await stopped_by(trace, result["evidence"].get("phase"), attack["target"], modes)} if outcome == "blocked" else {}
         return store.append(event("app", "attack_result", "allow" if outcome == "succeeds" else "deny", src="attacker",
                                   dst=attack["target"], trace=trace, attack=name, outcome=outcome, expected=expected,
                                   as_expected=outcome == expected, modes=modes, detail=result["evidence"], **extra))

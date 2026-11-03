@@ -120,6 +120,7 @@ async def no_wait(_):
 
 class NoNet:
     applied = staticmethod(lambda: False)
+    protects = staticmethod(lambda app: False)
 
 
 def api(output, store=None, mtls="off"):
@@ -266,3 +267,39 @@ def test_a_blocked_attack_with_no_deny_event_has_no_layer_to_name():
 
 def test_a_successful_attack_has_nothing_to_stop_it():
     assert "stopped_by" not in run_attack("no-identity-records", "succeeds", trace="t3")["evidence"]
+
+
+class NetUp(NoNet):
+    applied = staticmethod(lambda: True)
+    protects = staticmethod(lambda app: app in {"postgres", "records-api"})
+
+
+def run_with_net(name, phase, net=NetUp, **extra):
+    out = attack_out(name, "blocked", evidence={"phase": phase}, **extra)
+    app = create_app(Store(), sources=(), exec_in=fake_exec(out), kube=fake_kube("off"), wait=no_wait, net=net)
+    return TestClient(app).post(f"/attacks/{name}/run").json()["evidence"]
+
+
+def test_a_connect_failure_with_the_network_enforced_is_attributed_to_it_as_inferred():
+    assert run_with_net("read-postgres", "connect")["stopped_by"] == "network (inferred)"
+
+
+def test_a_handshake_refusal_is_not_attributed_to_the_network():
+    assert run_with_net("forged-identity", "handshake")["stopped_by"] is None
+
+
+def test_a_connect_failure_is_not_the_network_when_the_layer_is_off_or_the_target_is_unprotected():
+    assert run_with_net("read-postgres", "connect", net=NoNet)["stopped_by"] is None
+    assert run_with_net("cross-namespace-billing", "connect")["stopped_by"] is None
+
+
+def test_a_connect_refusal_does_not_wait_for_deny_events():
+    waits = []
+
+    async def count(_):
+        waits.append(1)
+
+    out = attack_out("read-postgres", "blocked", evidence={"phase": "connect"}, trace="t9")
+    app = create_app(Store(), sources=(), exec_in=fake_exec(out), kube=fake_kube("off"), wait=count, net=NetUp)
+    TestClient(app).post("/attacks/read-postgres/run")
+    assert waits == []

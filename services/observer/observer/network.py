@@ -45,6 +45,11 @@ def policies() -> list[dict]:
     return out
 
 
+def protects(app: str) -> bool:
+    """True when the policy set has an allow for this service, so a connect failure to it can be a policy drop."""
+    return any(dst == app for _, dst, _, _ in EDGES)
+
+
 def kubectl(*args, stdin=None) -> str:
     done = subprocess.run([*KUBECTL, *args], check=False, input=stdin, text=True, capture_output=True)
     if done.returncode:

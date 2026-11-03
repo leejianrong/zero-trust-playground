@@ -6,6 +6,7 @@ import asyncio
 import datetime as dt
 import json
 import os
+import ssl
 import sys
 import tempfile
 import uuid
@@ -132,6 +133,22 @@ ATTACKS = {
 }
 
 
+def failure_phase(exc: BaseException) -> str:
+    """Where the attempt died: `connect` (no TCP connection), `handshake` (TLS or the connection dropped under us)
+    or `request` (the server answered with a refusal). The observer uses this to tell a network drop from an mTLS one."""
+    if isinstance(exc, httpx.HTTPStatusError):
+        return "request"
+    chain = []
+    while exc is not None:
+        chain.append(exc)
+        exc = exc.__cause__ or exc.__context__
+    if any(isinstance(e, ssl.SSLError | httpx.RemoteProtocolError | httpx.ReadError) for e in chain):
+        return "handshake"
+    if any(isinstance(e, ConnectionRefusedError | httpx.ConnectError) or "Connection refused" in str(e) for e in chain):
+        return "connect"
+    return "request"
+
+
 def run(name: str, http: httpx.Client | None = None) -> dict:
     http = http or httpx.Client(timeout=5)
     trace = uuid.uuid4().hex[:12]  # every service passes it on, so the observer can find the events this attack caused
@@ -139,8 +156,10 @@ def run(name: str, http: httpx.Client | None = None) -> dict:
     try:
         return {"attack": name, "trace": trace, "outcome": "succeeds", "evidence": ATTACKS[name](http)}
     except (httpx.HTTPError, psycopg.Error, OSError, RuntimeError, ExceptionGroup) as exc:  # the attacker did not get through
+        while isinstance(exc, ExceptionGroup):  # a TaskGroup wraps the real error
+            exc = exc.exceptions[0]
         return {"attack": name, "trace": trace, "outcome": "blocked",
-                "evidence": {"error": type(exc).__name__, "detail": str(exc)[:200]}}
+                "evidence": {"error": type(exc).__name__, "detail": str(exc)[:200], "phase": failure_phase(exc)}}
 
 
 if __name__ == "__main__":
