@@ -60,6 +60,8 @@ hooks: ## enable the pre-push hook
 clinic: ## build and deploy the clinic app (web, records-api, billing, postgres)
 	docker build -q -t ztp/clinic:dev services/clinic
 	k3d image import ztp/clinic:dev -c $(CLUSTER_NAME)
-	kubectl --context $(CTX) apply -f deploy/clinic/app.yaml
+	kubectl --context $(CTX) apply -f deploy/clinic/app.yaml -f deploy/attacker.yaml
 	kubectl --context $(CTX) -n clinic rollout restart deploy/web deploy/records-api deploy/billing
+	kubectl --context $(CTX) -n attacker rollout restart deploy/attacker
 	kubectl --context $(CTX) -n clinic rollout status deploy/postgres deploy/web deploy/records-api deploy/billing --timeout=180s
+	kubectl --context $(CTX) -n attacker rollout status deploy/attacker --timeout=120s

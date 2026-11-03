@@ -1,0 +1,26 @@
+# LABELLED, LOCALHOST-ONLY: the attacker pod and a "leaked" copy of the shared DB password.
+apiVersion: v1
+kind: Namespace
+metadata: {name: attacker}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: attacker, namespace: attacker}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: attacker, namespace: attacker}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: attacker}}
+  template:
+    metadata: {labels: {app: attacker}}
+    spec:
+      serviceAccountName: attacker
+      containers:
+        - name: attacker
+          image: ztp/clinic:dev
+          imagePullPolicy: Never
+          command: [sleep, infinity]
+          env:
+            - {name: ATTACK_LEAKED_DB_PASSWORD, value: clinic-static-pw}
