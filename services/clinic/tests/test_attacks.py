@@ -5,7 +5,7 @@ import httpx
 import psycopg
 from cryptography import x509
 
-from clinic.attacks.run import ATTACKS, CLAIMED, forged_certificate, run
+from clinic.attacks.run import ATTACKS, CLAIMED, failure_phase, forged_certificate, run
 
 CATALOG = json.loads((Path(__file__).parent.parent / "clinic/attacks/catalog.json").read_text())
 
@@ -103,7 +103,13 @@ def test_postgres_from_billing_is_the_postgres_attack_run_from_another_pod():
     assert ATTACKS["postgres-from-billing"] is ATTACKS["read-postgres"]
     entry = next(a for a in CATALOG if a["name"] == "postgres-from-billing")
     assert entry["from"] == {"namespace": "clinic", "deploy": "billing"}
-    assert entry["expected"]["rules"] == [{"when": {"network": "enforce"}, "outcome": "blocked"}]
+    assert entry["expected"]["rules"] == [{"when": {"network": "enforce"}, "outcome": "blocked"},
+                                          {"when": {"secrets": "enforce"}, "outcome": "blocked"}]
+
+
+def test_a_revoked_password_is_its_own_failure_phase():
+    err = psycopg.OperationalError('connection failed: FATAL:  password authentication failed for user "clinic"')
+    assert failure_phase(err) == "auth"
 
 
 def test_a_connect_timeout_is_a_connect_failure():

@@ -78,6 +78,8 @@ def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl
         after the request, so look a few times. A refusal at the TLS handshake has no request, so no event.
         A refused connection never reaches a workload, so there is nothing to wait for: if the network layer is
         enforced and covers the target, name it, as an inference (ADR-0011)."""
+        if phase == "auth":  # a rejected password while the static one is revoked: the secrets layer did it (inferred)
+            return "secrets (inferred)" if modes.get("secrets") == "enforce" else None
         if phase == "connect":
             return "network (inferred)" if modes["network"] != "off" and net.protects(target) else None
         for _ in range(6 if trace else 0):

@@ -135,8 +135,8 @@ ATTACKS = {
 
 
 def failure_phase(exc: BaseException) -> str:
-    """Where the attempt died: `connect` (no TCP connection), `handshake` (TLS or the connection dropped under us)
-    or `request` (the server answered with a refusal). The observer uses this to tell a network drop from an mTLS one."""
+    """Where the attempt died: `connect` (no TCP connection), `handshake` (TLS or the connection dropped under us),
+    `auth` (Postgres rejected the password) or `request` (the server answered with a refusal). The observer uses this to tell a network drop from an mTLS one."""
     if isinstance(exc, httpx.HTTPStatusError):
         return "request"
     chain = []
@@ -145,6 +145,8 @@ def failure_phase(exc: BaseException) -> str:
         exc = exc.__cause__ or exc.__context__
     if any(isinstance(e, ssl.SSLError | httpx.RemoteProtocolError | httpx.ReadError) for e in chain):
         return "handshake"
+    if any("password authentication failed" in str(e) for e in chain):
+        return "auth"
     if any(isinstance(e, ConnectionRefusedError | httpx.ConnectError | httpx.ConnectTimeout)
            or "Connection refused" in str(e) or "connection timeout expired" in str(e) for e in chain):
         return "connect"
