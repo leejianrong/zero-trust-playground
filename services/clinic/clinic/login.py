@@ -98,3 +98,21 @@ def sign_out(request: Request):
     response = Response(status_code=204)
     response.delete_cookie(COOKIE, path="/")
     return response
+
+
+def token_for(request: Request) -> str | None:
+    """The signed-in user's access token, refreshed when it is about to expire. A failed refresh signs them out."""
+    sid = request.cookies.get(COOKIE, "")
+    s = SESSIONS.get(sid)
+    if s is None:
+        return None
+    if s.expires_at - time.time() < 30:
+        with keycloak() as kc:
+            r = kc.post(f"{INTERNAL}/protocol/openid-connect/token", data={
+                "grant_type": "refresh_token", "client_id": CLIENT_ID, "refresh_token": s.refresh_token})
+        if r.status_code != 200:
+            SESSIONS.pop(sid, None)
+            return None
+        t = r.json()
+        s.access_token, s.refresh_token, s.expires_at = t["access_token"], t["refresh_token"], time.time() + t["expires_in"]
+    return s.access_token

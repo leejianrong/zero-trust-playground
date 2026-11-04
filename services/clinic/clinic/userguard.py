@@ -102,7 +102,7 @@ class UserGuard:
              verdict=verdict, reason=why, trace=trace)
         if verdict != "deny":
             return await self.app(scope, receive, send)
-        body = json.dumps({"error": "refused", "reason": why, "trace": trace}).encode()
+        body = json.dumps({"error": "refused", "layer": "user", "reason": why, "trace": trace}).encode()
         await send({"type": "http.response.start", "status": status, "headers": [
             (b"content-type", b"application/json"), (b"x-trace-id", trace.encode())]})
         await send({"type": "http.response.body", "body": body})
