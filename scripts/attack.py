@@ -19,7 +19,8 @@ def call(path: str, method: str = "GET"):
 
 if len(sys.argv) < 2:
     for a in call("/attacks"):
-        print(f"{a['name']:<26} {a['title']}")
+        origin = a.get("from", {}).get("deploy", "attacker")
+        print(f"{a['name']:<26} {'from ' + origin:<16} {a['title']}")
 else:
     ev = call(f"/attacks/{sys.argv[1]}/run", "POST")["evidence"]
     modes = ", ".join(f"{layer}={mode}" for layer, mode in ev["modes"].items())

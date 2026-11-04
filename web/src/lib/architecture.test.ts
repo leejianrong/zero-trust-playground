@@ -13,10 +13,12 @@ test("the guarded line looks different in each mode, by shape as well as colour"
 });
 
 test("a built layer follows the live mode and a planned layer stays planned", () => {
-  const [identity, , network] = PATTERN_LAYERS;
+  const [identity, , network, secrets] = PATTERN_LAYERS;
   expect(status(identity, { identity: "audit", mtls: "off" })).toBe("audit");
   expect(status(identity, {})).toBe("off");
-  expect(status(network, { network: "enforce" })).toBe("planned");
+  expect(status(network, { network: "enforce" })).toBe("enforce");
+  expect(status(network, { network: "partial" })).toBe("partial");
+  expect(status(secrets, { secrets: "enforce" })).toBe("planned");
 });
 
 test("every layer names the pattern component it maps to", () => {

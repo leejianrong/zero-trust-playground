@@ -174,34 +174,41 @@ Sizing: about 36 points, twice a normal slice. Plan two build sessions: **sessio
 
 **Delivers:** R3, R6 (network layer)
 
+Sizing: about 20 points across eight cards. The first card is a spike, because everything else assumes k3s enforces NetworkPolicy and that a default-deny leaves the playground running.
+
 **Build plan**
 
-1. Controller creates default-deny NetworkPolicies in `clinic` plus per-edge allows.
-2. Network events from the Kubernetes API adapter (policy changes) and from refused connections the services observe, shown on Topology edges with `layer=network`.
-3. UI marks network `audit` as "not available" (Q15).
-4. Add the attacks "reach billing from another namespace" and "connect to Postgres from `billing`".
-5. Exercise `exercises/v4-network.md`: remove the `web → records-api` allow, predict, check.
+1. **A. Spike (AAL-56).** Apply a default-deny by hand and find what breaks (probes, port-forward, exec, API-server calls, DNS, the SPIFFE socket, Headlamp). Measure how a dropped connection looks to the caller. Writes ADR-0011.
+2. **B. Policies from one edge list (AAL-57).** A declared list of edges and a generator that produces the NetworkPolicies. Idempotent apply and remove. A test ties the edge list to the authz allow-list.
+3. **C. Controller, Layers view, Architecture view (AAL-58).** `PUT /layers/network` applies or removes the set. `audit` is refused with a reason (Q15). Both views show the network layer.
+4. **D. Policy change events (AAL-59).** The Kubernetes adapter reports a policy added, changed or removed, and tells controller changes from out-of-band ones.
+5. **E. Attribute drops (AAL-60).** A blocked attack that was dropped on the network, with network enforced, reports `stopped by: network (inferred)`. A forged-certificate drop must not.
+6. **F. Attacks and matrix (AAL-61, AAL-62).** The catalogue can name the pod an attack runs from, and `postgres-from-billing` shows a compromised pod inside the clinic. The matrix covers network and mtls together.
+7. **G. Tutorial and break-it guide (AAL-63).** Real output. Delete the `web` to `records-api` allow and predict, delete a policy out of band, turn network off and mtls on.
 
-**Demo:** With `mtls=off` and `network=enforce`, the attacker's direct Postgres connection is refused, and Topology draws the edge in the deny style labelled `network`. Then turn `network` off and `mtls` on to see the same attack stopped by a different layer.
+**Demo:** With `mtls=off` and `network=enforce`, the attacker's direct Postgres connection is refused and the attack output says `stopped by: network`. Then turn `network` off and `mtls` on, and the attacker's call to `records-api` is stopped by `mtls`, while Postgres is open again.
 
-**Rests on assumptions:** Q15.
+**Rests on assumptions:** Q15 (no audit on k3s), Q32 to Q35.
 
 ### Test plan
 
 #### End-to-end
 
-- `network=enforce`, others off: attacker→Postgres is stopped by `network`, `web` still reaches `records-api`.
-- `network=off`, `mtls=enforce`: attacker→`records-api` stopped by `mtls`, attacker→Postgres still succeeds.
-- Both off: both succeed.
+- `network=enforce`, others off: attacker to Postgres is stopped by `network`, `web` still reaches `records-api`, the clinic page and Summarise with AI work.
+- `network=off`, `mtls=enforce`: attacker to `records-api` is stopped by `mtls`, attacker to Postgres still succeeds.
+- Both off: every attack succeeds. Both on: every attack the catalogue marks blocked is blocked.
+- `postgres-from-billing` succeeds with network off and is blocked with network enforce.
 
 #### Integration
 
 - Applying and removing the policy set is idempotent.
-- The Kubernetes adapter emits an event when a policy is deleted out of band.
+- Deleting a policy out of band produces an event, and a controller apply produces controller-made events.
 
 #### Unit
 
-- Edge-allow generator produces the expected policy for each declared edge.
+- The generator produces the expected policy for each declared edge.
+- Every caller in the authz allow-list has a network edge.
+- The attribution rule names `network` for a dropped connection and not for a handshake refusal.
 
 ## V5: No standing database password
 

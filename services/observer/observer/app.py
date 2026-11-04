@@ -8,7 +8,7 @@ from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from . import adapters, layers, links
+from . import adapters, layers, links, network
 from .normalize import event
 from .store import Store
 
@@ -29,7 +29,7 @@ class ModeChange(BaseModel):
 
 
 def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl_exec, catalog=CATALOG,
-               probe_url=links.probe, kube=kubectl, wait=asyncio.sleep):
+               probe_url=links.probe, kube=kubectl, wait=asyncio.sleep, net=network):
     store = store or Store("observer.db")
     attacks = {a["name"]: a for a in json.loads(Path(catalog).read_text())}
 
@@ -40,9 +40,11 @@ def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl
             return
         store.append(ev)
 
+    watch = network.Watch(emit, net.listing)
+
     @asynccontextmanager
     async def lifespan(_):
-        tasks = [asyncio.create_task(src(emit)) for src in sources]
+        tasks = [asyncio.create_task(src(emit)) for src in sources] + [asyncio.create_task(watch.run())]
         yield
         for t in tasks:
             t.cancel()
@@ -71,9 +73,13 @@ def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl
 
         return StreamingResponse(stream(), media_type="text/event-stream")
 
-    async def stopped_by(trace: str | None) -> str | None:
+    async def stopped_by(trace: str | None, phase: str | None, target: str, modes: dict) -> str | None:
         """The layer of the first deny recorded under the attack's trace id. Workload logs reach the store a moment
-        after the request, so look a few times. A refusal at the TLS handshake has no request, so no event."""
+        after the request, so look a few times. A refusal at the TLS handshake has no request, so no event.
+        A refused connection never reaches a workload, so there is nothing to wait for: if the network layer is
+        enforced and covers the target, name it, as an inference (ADR-0011)."""
+        if phase == "connect":
+            return "network (inferred)" if modes["network"] != "off" and net.protects(target) else None
         for _ in range(6 if trace else 0):
             denies = [e for e in store.since(trace=trace) if e["verdict"] == "deny" and e["kind"] != "attack_result"]
             if denies:
@@ -90,7 +96,8 @@ def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl
         attack = attacks.get(name)
         if not attack:
             raise HTTPException(404, f"unknown attack {name}")
-        out = await exec_in("attacker", "attacker", "python", "-m", "clinic.attacks.run", name)
+        origin = attack.get("from", {"namespace": "attacker", "deploy": "attacker"})
+        out = await exec_in(origin["namespace"], origin["deploy"], "python", "-m", "clinic.attacks.run", name)
         try:
             result = json.loads(out.strip().splitlines()[-1])
         except (IndexError, json.JSONDecodeError):
@@ -98,8 +105,8 @@ def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl
         modes = await current_modes()
         outcome, trace = result["outcome"], result.get("trace")
         expected = layers.expected(attack, modes)
-        extra = {"stopped_by": await stopped_by(trace)} if outcome == "blocked" else {}
-        return store.append(event("app", "attack_result", "allow" if outcome == "succeeds" else "deny", src="attacker",
+        extra = {"stopped_by": await stopped_by(trace, result["evidence"].get("phase"), attack["target"], modes)} if outcome == "blocked" else {}
+        return store.append(event("app", "attack_result", "allow" if outcome == "succeeds" else "deny", src=origin["deploy"],
                                   dst=attack["target"], trace=trace, attack=name, outcome=outcome, expected=expected,
                                   as_expected=outcome == expected, modes=modes, detail=result["evidence"], **extra))
 
@@ -112,12 +119,24 @@ def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl
             raise HTTPException(502, "web did not answer; is `make clinic` deployed?")
         return {"ok": True, "patient": patient}
 
+    async def cluster(fn):
+        try:
+            return await asyncio.to_thread(fn)
+        except RuntimeError as e:
+            raise HTTPException(502, f"kubectl failed: {e}") from e
+
+    async def synced(watch, *origin):
+        try:
+            await watch.sync(*origin)
+        except RuntimeError as e:
+            raise HTTPException(502, f"kubectl failed: {e}") from e
+
     async def current_modes() -> dict:
         ns, name = layers.CONFIGMAP
         out = await kube("-n", ns, "get", "configmap", name, "-o", "json")
         if not out.strip():
             raise HTTPException(502, "layer-modes ConfigMap not found; is `make clinic` deployed?")
-        return layers.parse(out)
+        return {**layers.parse(out), "network": await cluster(net.state)}
 
     @app.get("/layers")
     async def get_layers():
@@ -132,8 +151,14 @@ def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl
         before = await current_modes()
         if why := layers.refusal(before, layer, body.mode):
             raise HTTPException(409, why)
-        ns, name = layers.CONFIGMAP
-        await kube("-n", ns, "patch", "configmap", name, "--type", "merge", "-p", layers.patch(layer, body.mode))
+        if layer == "network":
+            async with watch.lock:
+                await synced(watch)  # anything done by hand before this is out-of-band
+                await cluster(net.apply if body.mode == "enforce" else net.remove)
+                await synced(watch, "controller")
+        else:
+            ns, name = layers.CONFIGMAP
+            await kube("-n", ns, "patch", "configmap", name, "--type", "merge", "-p", layers.patch(layer, body.mode))
         if before[layer] != body.mode:
             store.append(event(layer, "layer_mode_changed", "info", src="learner", reason=f"{layer} set to {body.mode}",
                                before=before[layer], after=body.mode))

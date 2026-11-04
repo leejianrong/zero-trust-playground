@@ -121,7 +121,7 @@ Set mTLS back to **Off** and run it again. It now succeeds, because with the lay
 
 - Identity and mTLS are separate layers. Identity comes first, and the controller refuses an order that would break the clinic.
 - Audit tells you what enforcement would refuse. It changes nothing.
-- Enforce stopped three of the six attacks. Each result lists which layer stopped it.
+- Enforce stopped three of the seven attacks. Each result lists which layer stopped it.
 - A forged certificate dies in the handshake, where no log can see it.
 - The prompt injection and the database read are still open, and that tells you which layers to build next.
 

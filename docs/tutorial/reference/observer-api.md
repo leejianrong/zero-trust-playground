@@ -22,7 +22,7 @@ A reconnecting client can send a `Last-Event-ID` header instead of `since`. A on
 | `id` | integer | Position in the log |
 | `ts` | number | Unix time in seconds |
 | `layer` | string | `app`, `identity`, `mtls`, `network`, `secrets`, `user` or `runtime` |
-| `kind` | string | For example `http_request`, `db_connect`, `svid_issued`, `entry_added`, `attack_result` |
+| `kind` | string | For example `http_request`, `db_connect`, `svid_issued`, `entry_added`, `policy_removed`, `attack_result` |
 | `src`, `dst` | string or null | The calling and called workloads |
 | `verdict` | string | `allow`, `deny` or `info` |
 | `reason` | string or null | Why, when a layer decided |
@@ -31,11 +31,11 @@ A reconnecting client can send a `Last-Event-ID` header instead of `since`. A on
 
 ## `GET /attacks`
 
-Returns the attack catalogue: `name`, `title`, `description`, `target` and `expected`.
+Returns the attack catalogue: `name`, `title`, `description`, `target`, `expected` and, for an attack that runs from a pod other than the attacker, `from` (`namespace` and `deploy`).
 
 ## `POST /attacks/{name}/run`
 
-Runs one attack from the attacker pod and returns its `attack_result` event. Returns `404` for an unknown name and `502` if the attacker pod gives no result.
+Runs one attack from the pod the catalogue names (the attacker pod unless it says otherwise) and returns its `attack_result` event. A blocked attack carries `stopped_by`: a layer name, `network (inferred)` when the connection was refused while the network layer covers the target, or null. The attack's detail includes `phase` (`connect`, `handshake` or `request`) for a blocked attack. Returns `404` for an unknown name and `502` if the attacker pod gives no result.
 
 ## `POST /app/use`
 
@@ -51,11 +51,11 @@ Returns `{"ok": true}`.
 
 ## `GET /layers`
 
-Returns the current mode of each layer, for example `{"identity": "off", "mtls": "off"}`. The modes live in the `layer-modes` ConfigMap in the `clinic` namespace, and the services poll it every 2 seconds.
+Returns the current mode of each layer, for example `{"identity": "off", "mtls": "off", "network": "off"}`. The `identity` and `mtls` modes live in the `layer-modes` ConfigMap in the `clinic` namespace, and the services poll it every 2 seconds. The `network` mode is `enforce` when the whole set of network policies exists in the cluster, `partial` when some are missing but a default-deny is still there (the rest still deny traffic), and `off` when no default-deny is left. `PUT /layers/network` takes only `off` and `enforce`; `partial` is something you can only observe. The network policy events are described in [Network policies](network-policies.md).
 
 ## `PUT /layers/{layer}`
 
-Sets one layer to `off`, `audit` or `enforce` with a body like `{"mode": "audit"}`, and returns the new modes. Returns `422` for an unknown layer or mode. Returns `409` with a reason when the change would break the playground: `mtls` cannot be on while `identity` is off, and `identity` cannot go off while `mtls` is on. A change that alters a mode is recorded as a `layer_mode_changed` event. The dashboard's **Layers** view calls this endpoint.
+Sets one layer to `off`, `audit` or `enforce` with a body like `{"mode": "audit"}`, and returns the new modes. Returns `422` for an unknown layer or mode. Returns `409` with a reason when the change would break the playground: `mtls` cannot be on while `identity` is off, and `identity` cannot go off while `mtls` is on. `network` has no `audit` mode and `PUT /layers/network` with `audit` returns `409`; `enforce` applies the network policies and `off` deletes them. A change that alters a mode is recorded as a `layer_mode_changed` event. The dashboard's **Layers** view calls this endpoint.
 
 !!! warning "The controller can turn security off"
     The observer runs on your machine with your kubeconfig, so this endpoint is as privileged as you are. It listens on localhost only.

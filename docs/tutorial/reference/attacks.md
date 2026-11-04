@@ -1,24 +1,30 @@
 # Attacks
 
-The attack runner lives in `services/clinic/clinic/attacks/` and runs from the `attacker` pod. Each attack is listed in `catalog.json` with a default outcome and rules that change it for a layer mode. Run one with `make attack A=<name>`. The output names the layer modes, the expected outcome, whether the result matched, and, for a blocked attack, which layer stopped it.
+The attack runner lives in `services/clinic/clinic/attacks/` and runs from the `attacker` pod, or from the pod that an attack's `from` entry in `catalog.json` names. Each attack is listed there with a default outcome and rules that change it for a layer mode. Run one with `make attack A=<name>`. The output names the layer modes, the expected outcome, whether the result matched, and, for a blocked attack, which layer stopped it.
 
-| Name | Title | Target | Layers off | mTLS enforced |
-|---|---|---|---|---|
-| `read-postgres` | Read patient records straight from Postgres | `postgres` | succeeds | succeeds |
-| `no-identity-records` | Call records-api with no identity | `records-api` | succeeds | blocked |
-| `cross-namespace-billing` | Reach billing from another namespace | `billing` | succeeds | blocked |
-| `mcp-no-identity` | Call the MCP server with no identity | `records-mcp` | succeeds | blocked |
-| `forged-identity` | Pretend to be the web app with a forged certificate | `records-api` | succeeds | blocked |
-| `agent-prompt-injection` | Let an agent summarise a poisoned record | `records-mcp` | succeeds | succeeds |
+| Name | Title | Runs from | Target | Layers off | mTLS enforced | Network enforced |
+|---|---|---|---|---|---|---|
+| `read-postgres` | Read patient records straight from Postgres | `attacker` | `postgres` | succeeds | succeeds | blocked |
+| `postgres-from-billing` | Read patient records from a compromised billing pod | `billing` | `postgres` | succeeds | succeeds | blocked |
+| `no-identity-records` | Call records-api with no identity | `attacker` | `records-api` | succeeds | blocked | blocked |
+| `cross-namespace-billing` | Reach billing from another namespace | `attacker` | `billing` | succeeds | blocked | blocked |
+| `mcp-no-identity` | Call the MCP server with no identity | `attacker` | `records-mcp` | succeeds | blocked | blocked |
+| `forged-identity` | Pretend to be the web app with a forged certificate | `attacker` | `records-api` | succeeds | blocked | blocked |
+| `agent-prompt-injection` | Let an agent summarise a poisoned record | `attacker` | `records-mcp` | succeeds | succeeds | succeeds |
+
+The matrix test in `web/e2e/matrix.spec.ts` runs every attack at five settings (all off, mTLS audit, mTLS enforce, network only, and both) and checks each result against this table.
 
 ## Outcomes
 
-An attack ends in one of two outcomes: `succeeds`, meaning the attacker got what it wanted, or `blocked`. Which layer blocked it is worked out by the observer: the runner tags every request with one trace id, and the layer of the first `deny` event with that trace is reported as `stopped by`. A refusal at the TLS handshake has no request and so no event.
+An attack ends in one of two outcomes: `succeeds`, meaning the attacker got what it wanted, or `blocked`. Which layer blocked it is worked out by the observer: the runner tags every request with one trace id, and the layer of the first `deny` event with that trace is reported as `stopped by`. A refusal at the TLS handshake has no request and so no event. A dropped connection has none either, so when the network layer is enforced and the attack failed while connecting to a service it covers, the result says `network (inferred)`. The attack's detail records the `phase` that failed: `connect`, `handshake` or `request`.
 
 ## Details
 
 `read-postgres`
 : Logs in to Postgres as `clinic` with the shared static password and counts the rows.
+
+`postgres-from-billing`
+: The same attack, run from inside the `billing` pod, which holds a copy of the leaked password just as the attacker pod does. It stands for an attacker who has code execution in a pod that belongs to the clinic. Only `records-api` is allowed to reach Postgres once the network layer is on.
 
 `no-identity-records`
 : Calls `GET /patients` on `records-api` with no credential.

@@ -25,7 +25,7 @@ export const EDGES: Edge[] = [
   { from: "records-api", to: "postgres", guarded: false },
 ];
 
-export type Status = "off" | "audit" | "enforce" | "planned";
+export type Status = "off" | "audit" | "enforce" | "partial" | "planned";
 
 export type Layer = {
   id: string;
@@ -39,14 +39,14 @@ export type Layer = {
 export const PATTERN_LAYERS: Layer[] = [
   { id: "identity", name: "Workload identity", component: "SPIFFE and SPIRE", protects: "Every service can prove who it is, with a certificate that lives two minutes.", slice: "V1, V3", built: true },
   { id: "mtls", name: "Mutual TLS and authorisation", component: "SPIRE certificates with an allow-list", protects: "Services refuse callers they do not know, and callers that may not make this request.", slice: "V3", built: true },
-  { id: "network", name: "Network policy", component: "Kubernetes network policies", protects: "A pod that is not on the list cannot even reach the database or the services.", slice: "V4", built: false },
+  { id: "network", name: "Network policy", component: "Kubernetes network policies", protects: "A pod that is not on the list cannot even reach the database or the services.", slice: "V4", built: true },
   { id: "secrets", name: "Short-lived secrets", component: "HashiCorp Vault and External Secrets", protects: "The database password stops being shared and permanent.", slice: "V5", built: false },
   { id: "user", name: "User identity", component: "Keycloak", protects: "The services know which person a request is for.", slice: "V6", built: false },
   { id: "agent", name: "Agent scopes", component: "A playground addition for agents", protects: "An agent gets its own identity and only the tools it needs.", slice: "V6b", built: false },
 ];
 
 export const status = (layer: Layer, modes: Modes): Status =>
-  layer.built ? ((modes[layer.id] as Mode | undefined) ?? "off") : "planned";
+  layer.built ? ((modes[layer.id] as Status | undefined) ?? "off") : "planned";
 
 /** How an mTLS-guarded line is drawn. Shape differs as well as colour, so colour never carries it alone. */
 export function lineFor(mtls: Mode | undefined): { dash: string; color: string; width: number; label: string } {

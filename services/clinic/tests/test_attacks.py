@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import httpx
+import psycopg
 from cryptography import x509
 
 from clinic.attacks.run import ATTACKS, CLAIMED, forged_certificate, run
@@ -79,3 +80,32 @@ def test_the_forged_certificate_names_the_web_app_but_is_signed_by_itself():
     san = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
     assert san.get_values_for_type(x509.UniformResourceIdentifier) == [CLAIMED]
     assert cert.issuer == cert.subject  # no CA vouches for it
+
+
+def blocked_by(exc, name="no-identity-records"):
+    def fail(request):
+        raise exc
+    return run(name, client(fail))["evidence"]
+
+
+def test_a_blocked_attack_records_which_phase_failed():
+    assert blocked_by(httpx.ConnectError("refused"))["phase"] == "connect"
+    assert blocked_by(httpx.RemoteProtocolError("server disconnected"))["phase"] == "handshake"
+    assert run("cross-namespace-billing", client(lambda r: httpx.Response(403, json={})))["evidence"]["phase"] == "request"
+
+
+def test_an_exception_group_is_reported_as_its_first_real_error():
+    ev = blocked_by(ExceptionGroup("unhandled errors in a TaskGroup", [httpx.ConnectError("refused")]))
+    assert (ev["error"], ev["phase"]) == ("ConnectError", "connect")
+
+
+def test_postgres_from_billing_is_the_postgres_attack_run_from_another_pod():
+    assert ATTACKS["postgres-from-billing"] is ATTACKS["read-postgres"]
+    entry = next(a for a in CATALOG if a["name"] == "postgres-from-billing")
+    assert entry["from"] == {"namespace": "clinic", "deploy": "billing"}
+    assert entry["expected"]["rules"] == [{"when": {"network": "enforce"}, "outcome": "blocked"}]
+
+
+def test_a_connect_timeout_is_a_connect_failure():
+    assert blocked_by(httpx.ConnectTimeout("timed out"))["phase"] == "connect"
+    assert blocked_by(psycopg.OperationalError("connection timeout expired"))["phase"] == "connect"

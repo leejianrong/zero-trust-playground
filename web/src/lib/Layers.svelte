@@ -47,11 +47,18 @@
           </div>
           <div class="switch" role="radiogroup" aria-label="{layer.name} mode">
             {#each MODES as m (m.id)}
-              <button role="radio" aria-checked={current === m.id} class:on={current === m.id} onclick={() => choose(layer.id, m.id)}>{m.label}</button>
+              <button role="radio" aria-checked={current === m.id} class:on={current === m.id}
+                disabled={m.id === "audit" && !!layer.noAudit} title={m.id === "audit" ? layer.noAudit : undefined}
+                onclick={() => choose(layer.id, m.id)}>{m.label}</button>
             {/each}
           </div>
         </div>
-        {#if current}
+        {#if layer.noAudit}
+          <p class="hint">{layer.noAudit}</p>
+        {/if}
+        {#if current === "partial"}
+          <p class="now"><b>Partial:</b> {layer.partial}</p>
+        {:else if current}
           <p class="now"><b>{MODES.find((m) => m.id === current)?.label}:</b> {layer.modes[current]}</p>
         {/if}
         {#if refusal?.layer === layer.id}

@@ -1,9 +1,11 @@
+import asyncio
 import json
 from pathlib import Path
 
 import jsonschema
 from fastapi.testclient import TestClient
 
+from observer import network
 from observer.app import create_app
 from observer.normalize import diff_entries, entry_key, event, from_log_line, from_postgres_line
 from observer.store import Store
@@ -118,9 +120,15 @@ async def no_wait(_):
     pass
 
 
+class NoNet:
+    state = staticmethod(lambda: "off")
+    protects = staticmethod(lambda app: False)
+    listing = staticmethod(dict)
+
+
 def api(output, store=None, mtls="off"):
     return TestClient(create_app(store or Store(), sources=(), exec_in=fake_exec(output), kube=fake_kube(mtls),
-                                 wait=no_wait))
+                                 wait=no_wait, net=NoNet))
 
 
 def attack_out(name, outcome, **extra):
@@ -133,7 +141,7 @@ def test_running_an_attack_records_its_result_and_the_expectation():
         .post("/attacks/read-postgres/run").json()
     jsonschema.validate({k: v for k, v in body.items()}, SCHEMA)
     assert (body["verdict"], body["dst"], body["evidence"]["expected"]) == ("allow", "postgres", "succeeds")
-    assert body["evidence"]["modes"] == {"identity": "off", "mtls": "off"} and body["evidence"]["as_expected"] is True
+    assert body["evidence"]["modes"] == {"identity": "off", "mtls": "off", "network": "off"} and body["evidence"]["as_expected"] is True
     assert store.since(0)[0]["kind"] == "attack_result"
 
 
@@ -262,3 +270,153 @@ def test_a_blocked_attack_with_no_deny_event_has_no_layer_to_name():
 
 def test_a_successful_attack_has_nothing_to_stop_it():
     assert "stopped_by" not in run_attack("no-identity-records", "succeeds", trace="t3")["evidence"]
+
+
+class NetUp(NoNet):
+    state = staticmethod(lambda: "enforce")
+    protects = staticmethod(lambda app: app in {"postgres", "records-api"})
+
+
+def run_with_net(name, phase, net=NetUp, **extra):
+    out = attack_out(name, "blocked", evidence={"phase": phase}, **extra)
+    app = create_app(Store(), sources=(), exec_in=fake_exec(out), kube=fake_kube("off"), wait=no_wait, net=net)
+    return TestClient(app).post(f"/attacks/{name}/run").json()["evidence"]
+
+
+def test_a_connect_failure_with_the_network_enforced_is_attributed_to_it_as_inferred():
+    assert run_with_net("read-postgres", "connect")["stopped_by"] == "network (inferred)"
+
+
+def test_a_handshake_refusal_is_not_attributed_to_the_network():
+    assert run_with_net("forged-identity", "handshake")["stopped_by"] is None
+
+
+def test_a_connect_failure_is_not_the_network_when_the_layer_is_off_or_the_target_is_unprotected():
+    assert run_with_net("read-postgres", "connect", net=NoNet)["stopped_by"] is None
+    assert run_with_net("cross-namespace-billing", "connect")["stopped_by"] is None
+
+
+def test_a_connect_refusal_does_not_wait_for_deny_events():
+    waits = []
+
+    async def count(_):
+        waits.append(1)
+
+    out = attack_out("read-postgres", "blocked", evidence={"phase": "connect"}, trace="t9")
+    app = create_app(Store(), sources=(), exec_in=fake_exec(out), kube=fake_kube("off"), wait=count, net=NetUp)
+    TestClient(app).post("/attacks/read-postgres/run")
+    assert waits == []
+
+
+def test_an_attack_runs_from_the_pod_the_catalogue_names_and_defaults_to_the_attacker():
+    seen = []
+
+    async def exec_in(namespace, deploy, *cmd):
+        seen.append((namespace, deploy))
+        return attack_out("x", "succeeds")
+
+    app = create_app(Store(), sources=(), exec_in=exec_in, kube=fake_kube(), wait=no_wait, net=NoNet)
+    client = TestClient(app)
+    client.post("/attacks/read-postgres/run")
+    ev = client.post("/attacks/postgres-from-billing/run").json()
+    assert seen == [("attacker", "attacker"), ("clinic", "billing")] and ev["src"] == "billing"
+
+
+def test_the_catalogue_lists_where_each_attack_runs_from():
+    by_name = {a["name"]: a for a in api("").get("/attacks").json()}
+    assert by_name["postgres-from-billing"]["from"] == {"namespace": "clinic", "deploy": "billing"}
+
+
+def specs(**named):
+    return {("clinic", name): {"podSelector": {"matchLabels": {"app": name}}, "n": n} for name, n in named.items()}
+
+
+def test_policy_diff_reports_added_changed_and_removed_with_valid_events():
+    old = specs(a=1, b=1, c=1)
+    new = specs(a=1, b=2, d=1)
+    evs = list(network.diff_policies(old, new, "out-of-band"))
+    for ev in evs:
+        jsonschema.validate(ev, SCHEMA)
+    got = sorted((e["kind"], e["dst"], e["evidence"]["origin"]) for e in evs)
+    assert got == [("policy_added", "clinic/d", "out-of-band"), ("policy_changed", "clinic/b", "out-of-band"),
+                   ("policy_removed", "clinic/c", "out-of-band")]
+
+
+def test_the_reason_reads_as_a_sentence():
+    by = {e["evidence"]["origin"]: e["reason"] for o in ("controller", "out-of-band")
+          for e in network.diff_policies(specs(a=1), {}, o)}
+    assert by == {"controller": "a removed by the controller", "out-of-band": "a removed outside the controller"}
+
+
+def test_an_unchanged_policy_list_reports_nothing():
+    assert list(network.diff_policies(specs(a=1), specs(a=1), "controller")) == []
+
+
+def test_the_watch_baselines_silently_then_reports_what_changed_since():
+    state, seen = {"now": specs(a=1, b=1)}, []
+    watch = network.Watch(seen.append, lambda: state["now"])
+    asyncio.run(watch.sync())
+    assert seen == []
+    state["now"] = specs(a=1)  # someone ran kubectl delete networkpolicy b
+    asyncio.run(watch.sync())
+    assert [(e["kind"], e["dst"], e["evidence"]["origin"]) for e in seen] == [("policy_removed", "clinic/b", "out-of-band")]
+    asyncio.run(watch.sync())
+    assert len(seen) == 1  # reported once
+
+
+class FakeNet(NoNet):
+    """A cluster in a dict: apply and remove change it, listing reads it."""
+    def __init__(self):
+        self.specs = {}
+
+    def apply(self):
+        self.specs = specs(a=1, b=1)
+
+    def remove(self):
+        self.specs = {}
+
+    def listing(self):
+        return dict(self.specs)
+
+
+def put_network(client, mode):
+    return client.put("/layers/network", json={"mode": mode})
+
+
+def test_a_controller_apply_is_marked_controller_made_and_a_later_deletion_is_not():
+    store, net = Store(), FakeNet()
+    app = create_app(store, sources=(), exec_in=fake_exec(""), kube=fake_kube(), wait=no_wait, net=net)
+    with TestClient(app) as client:
+        assert put_network(client, "enforce").status_code == 200
+        added = [e for e in store.since() if e["kind"] == "policy_added"]
+        assert sorted(e["dst"] for e in added) == ["clinic/a", "clinic/b"]
+        assert {e["evidence"]["origin"] for e in added} == {"controller"}
+        put_network(client, "off")
+        assert {e["evidence"]["origin"] for e in store.since() if e["kind"] == "policy_removed"} == {"controller"}
+
+
+def expected_for(name, **modes):
+    from observer import layers
+    from observer.app import CATALOG
+    attack = next(a for a in json.loads(CATALOG.read_text()) if a["name"] == name)
+    return layers.expected(attack, {"identity": "off", "mtls": "off", "network": "off", **modes})
+
+
+def test_the_catalogue_says_which_layer_combinations_stop_each_attack():
+    through_the_wire = ["no-identity-records", "cross-namespace-billing", "mcp-no-identity", "forged-identity"]
+    for name in through_the_wire:  # a request to a service: mtls or the network stops it
+        assert expected_for(name) == "succeeds", name
+        assert expected_for(name, network="enforce") == "blocked", name
+        assert expected_for(name, identity="enforce", mtls="enforce") == "blocked", name
+    for name in ("read-postgres", "postgres-from-billing"):  # Postgres has no mtls: only the network stops it
+        assert expected_for(name, identity="enforce", mtls="enforce") == "succeeds", name
+        assert expected_for(name, network="enforce") == "blocked", name
+    assert expected_for("agent-prompt-injection", identity="enforce", mtls="enforce", network="enforce") == "succeeds"
+
+
+class NetPartial(NetUp):
+    state = staticmethod(lambda: "partial")
+
+
+def test_a_connect_failure_with_a_partial_network_is_attributed_to_it_as_inferred():
+    assert run_with_net("read-postgres", "connect", net=NetPartial)["stopped_by"] == "network (inferred)"

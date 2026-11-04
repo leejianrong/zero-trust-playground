@@ -1,5 +1,7 @@
 export type Mode = "off" | "audit" | "enforce";
-export type Modes = Record<string, Mode>;
+// The network layer can also read `partial`: part of the policy set is gone but the rest still drops traffic.
+export type Reported = Mode | "partial";
+export type Modes = Record<string, Reported>;
 
 export const MODES: { id: Mode; label: string }[] = [
   { id: "off", label: "Off" },
@@ -7,7 +9,7 @@ export const MODES: { id: Mode; label: string }[] = [
   { id: "enforce", label: "Enforce" },
 ];
 
-export type LayerInfo = { id: string; name: string; what: string; modes: Record<Mode, string> };
+export type LayerInfo = { id: string; name: string; what: string; modes: Record<Mode, string>; noAudit?: string; partial?: string };
 
 // What each mode does in this playground, as built. Keep in step with ADR-0010.
 export const LAYERS: LayerInfo[] = [
@@ -30,6 +32,18 @@ export const LAYERS: LayerInfo[] = [
       audit: "Each call is checked against the allow-list and a would-be refusal is logged. Nothing is refused. A forged certificate is still dropped during the TLS handshake, which cannot be logged.",
       enforce: "A caller with no valid identity, or one not on the allow-list, gets a 403 with a reason. Plain HTTP is refused except /healthz.",
     },
+  },
+  {
+    id: "network",
+    name: "Network policy",
+    what: "Kubernetes decides which pods may open a connection to which. Anything not on the list is dropped.",
+    modes: {
+      off: "No policy. Any pod can open a connection to any service, including the database.",
+      audit: "Not offered. A dropped connection leaves no log we can read.",
+      enforce: "Default-deny on the clinic and agents namespaces, plus one allow for each real call. Only records-api reaches Postgres.",
+    },
+    partial: "Part of the policy set is missing, so some paths are open. The rest of the set still drops traffic. Turn Enforce on to restore the whole set.",
+    noAudit: "Not available: a dropped connection leaves no log we can read, so there is nothing to show in audit.",
   },
 ];
 
