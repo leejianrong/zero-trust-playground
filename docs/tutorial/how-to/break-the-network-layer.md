@@ -4,7 +4,7 @@ Run these with the network layer enforced and the other layers off. Each one sho
 
 ```console
 $ curl -s -X PUT localhost:8765/layers/network -H 'content-type: application/json' -d '{"mode":"enforce"}'
-{"identity":"off","mtls":"off","secrets":"off","network":"enforce"}
+{"identity":"off","mtls":"off","secrets":"off","user":"off","network":"enforce"}
 ```
 
 Keep the clinic page open through `make web`.
@@ -35,7 +35,7 @@ Now look at what the controller thinks:
 
 ```console
 $ curl -s localhost:8765/layers
-{"identity":"off","mtls":"off","secrets":"off","network":"partial"}
+{"identity":"off","mtls":"off","secrets":"off","user":"off","network":"partial"}
 ```
 
 It says `partial`. The controller reads `enforce` only when the whole set exists. With a policy missing but a default-deny still in place, it says `partial`: some paths are open and the rest still deny. The attack matrix treats `partial` like `enforce`, so an attack the set still stops is shown as blocked, not as a success. Only `off` means no default-deny is left. The deletion is also an event (see the next section).
@@ -44,7 +44,7 @@ To recover, enforce again. The controller reapplies the full set, which puts bac
 
 ```console
 $ curl -s -X PUT localhost:8765/layers/network -H 'content-type: application/json' -d '{"mode":"enforce"}'
-{"identity":"off","mtls":"off","secrets":"off","network":"enforce"}
+{"identity":"off","mtls":"off","secrets":"off","user":"off","network":"enforce"}
 $ curl -s -o /dev/null -w "%{http_code}\n" localhost:8081/api/patients
 200
 ```
@@ -64,7 +64,7 @@ In our run the event was in the store about a second after the delete, and the l
 
 ```console
 $ curl -s -X PUT localhost:8765/layers/network -H 'content-type: application/json' -d '{"mode":"enforce"}'
-{"identity":"off","mtls":"off","secrets":"off","network":"enforce"}
+{"identity":"off","mtls":"off","secrets":"off","user":"off","network":"enforce"}
 $ curl -s 'localhost:8765/events?follow=false' | grep '^data:' | grep policy_added | tail -1 | sed 's/^data: //'
 {"v": 1, "ts": 1793729539.8191347, "layer": "network", "kind": "policy_added", "verdict": "info", "src": "controller", "dst": "clinic/allow-billing", "reason": "allow-billing added by the controller", "trace": null, "evidence": {"origin": "controller", "namespace": "clinic", "name": "allow-billing"}, "id": 12093}
 ```
@@ -81,7 +81,7 @@ Run `no-identity-records` with the network layer on and then with mTLS on instea
 
 ```console
 $ curl -s -X PUT localhost:8765/layers/network -H 'content-type: application/json' -d '{"mode":"off"}'
-{"identity":"off","mtls":"off","secrets":"off","network":"off"}
+{"identity":"off","mtls":"off","secrets":"off","user":"off","network":"off"}
 ```
 
 Check that nothing is left behind:

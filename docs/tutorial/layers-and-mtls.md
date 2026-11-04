@@ -8,7 +8,7 @@ You need the clinic deployed (`make clinic`), the observer running (`make observ
 
 ```console
 $ make attack A=no-identity-records
-no-identity-records: SUCCEEDS   [identity=off, mtls=off, secrets=off, network=off]
+no-identity-records: SUCCEEDS   [identity=off, mtls=off, secrets=off, user=off, network=off]
 expected succeeds: as expected
 {
   "status": 200,
@@ -44,7 +44,7 @@ Set **Mutual TLS and authorisation** to **Audit** (or `PUT /layers/mtls` with `{
 
 ```console
 $ make attack A=no-identity-records
-no-identity-records: SUCCEEDS   [identity=audit, mtls=audit, secrets=off, network=off]
+no-identity-records: SUCCEEDS   [identity=audit, mtls=audit, secrets=off, user=off, network=off]
 expected succeeds: as expected
 {
   "status": 200,
@@ -67,7 +67,7 @@ Set **Mutual TLS and authorisation** to **Enforce** and run the attack once more
 
 ```console
 $ make attack A=no-identity-records
-no-identity-records: BLOCKED   [identity=audit, mtls=enforce, secrets=off, network=off]
+no-identity-records: BLOCKED   [identity=audit, mtls=enforce, secrets=off, user=off, network=off]
 expected blocked: as expected
 stopped by: mtls
 ```
@@ -92,7 +92,7 @@ Run the prompt injection:
 
 ```console
 $ make attack A=agent-prompt-injection
-agent-prompt-injection: SUCCEEDS   [identity=audit, mtls=enforce, secrets=off, network=off]
+agent-prompt-injection: SUCCEEDS   [identity=audit, mtls=enforce, secrets=off, user=off, network=off]
 expected succeeds: as expected
 ```
 
@@ -104,7 +104,7 @@ The decoy patient is deleted even though mTLS is enforced. The attack goes the w
 
 ```console
 $ make attack A=forged-identity
-forged-identity: BLOCKED   [identity=audit, mtls=enforce, secrets=off, network=off]
+forged-identity: BLOCKED   [identity=audit, mtls=enforce, secrets=off, user=off, network=off]
 expected blocked: as expected
 stopped by: no layer recorded an event (refused before any request, or not by a layer)
 {

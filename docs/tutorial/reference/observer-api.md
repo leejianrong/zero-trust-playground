@@ -22,7 +22,7 @@ A reconnecting client can send a `Last-Event-ID` header instead of `since`. A on
 | `id` | integer | Position in the log |
 | `ts` | number | Unix time in seconds |
 | `layer` | string | `app`, `identity`, `mtls`, `network`, `secrets`, `user` or `runtime` |
-| `kind` | string | For example `http_request`, `db_connect`, `svid_issued`, `entry_added`, `policy_removed`, `credential_issued`, `credential_denied`, `attack_result` |
+| `kind` | string | For example `http_request`, `db_connect`, `svid_issued`, `entry_added`, `policy_removed`, `credential_issued`, `credential_denied`, `user_login`, `user_login_failed`, `user_logout`, `user_token_refused`, `user_authorisation`, `attack_result` |
 | `src`, `dst` | string or null | The calling and called workloads |
 | `verdict` | string | `allow`, `deny` or `info` |
 | `reason` | string or null | Why, when a layer decided |
@@ -51,11 +51,11 @@ Returns `{"ok": true}`.
 
 ## `GET /layers`
 
-Returns the current mode of each layer, for example `{"identity": "off", "mtls": "off", "secrets": "off", "network": "off"}`. The `identity`, `mtls` and `secrets` modes live in the `layer-modes` ConfigMap in the `clinic` namespace, and the services poll it every 2 seconds. The `network` mode is `enforce` when the whole set of network policies exists in the cluster, `partial` when some are missing but a default-deny is still there (the rest still deny traffic), and `off` when no default-deny is left. `PUT /layers/network` takes only `off` and `enforce`; `partial` is something you can only observe. The network policy events are described in [Network policies](network-policies.md).
+Returns the current mode of each layer, for example `{"identity": "off", "mtls": "off", "secrets": "off", "user": "off", "network": "off"}`. The `identity`, `mtls`, `secrets` and `user` modes live in the `layer-modes` ConfigMap in the `clinic` namespace, and the services poll it every 2 seconds. The `network` mode is `enforce` when the whole set of network policies exists in the cluster, `partial` when some are missing but a default-deny is still there (the rest still deny traffic), and `off` when no default-deny is left. `PUT /layers/network` takes only `off` and `enforce`; `partial` is something you can only observe. The network policy events are described in [Network policies](network-policies.md).
 
 ## `PUT /layers/{layer}`
 
-Sets one layer to `off`, `audit` or `enforce` with a body like `{"mode": "audit"}`, and returns the new modes. Returns `422` for an unknown layer or mode. Returns `409` with a reason when the change would break the playground: `mtls` cannot be on while `identity` is off, and `identity` cannot go off while `mtls` is on. `secrets` needs Vault: turning it to `audit` or `enforce` returns `409` with a reason if Vault is not installed. Entering `enforce` waits a few seconds so `records-api` is on Vault credentials, then revokes the shared database password; leaving `enforce` restores it first. `network` has no `audit` mode and `PUT /layers/network` with `audit` returns `409`; `enforce` applies the network policies and `off` deletes them. A change that alters a mode is recorded as a `layer_mode_changed` event. The dashboard's **Layers** view calls this endpoint.
+Sets one layer to `off`, `audit` or `enforce` with a body like `{"mode": "audit"}`, and returns the new modes. Returns `422` for an unknown layer or mode. Returns `409` with a reason when the change would break the playground: `mtls` cannot be on while `identity` is off, and `identity` cannot go off while `mtls` is on. `secrets` needs Vault and `user` needs Keycloak: turning either to `audit` or `enforce` returns `409` with a reason (`make vault` or `make keycloak` first) if it is not installed. Entering `enforce` waits a few seconds so `records-api` is on Vault credentials, then revokes the shared database password; leaving `enforce` restores it first. `network` has no `audit` mode and `PUT /layers/network` with `audit` returns `409`; `enforce` applies the network policies and `off` deletes them. A change that alters a mode is recorded as a `layer_mode_changed` event. The dashboard's **Layers** view calls this endpoint.
 
 !!! warning "The controller can turn security off"
     The observer runs on your machine with your kubeconfig, so this endpoint is as privileged as you are. It listens on localhost only.
