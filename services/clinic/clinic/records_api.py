@@ -7,8 +7,12 @@ from pydantic import BaseModel, Field
 
 from . import vault
 from .common import instrument, layer_mode
+from .userguard import UserGuard
 
-app = instrument(FastAPI(title="records-api"), "records-api")
+app = FastAPI(title="records-api")
+# Added before instrument() so it sits inside the logging middleware and its refusals are logged too.
+app.add_middleware(UserGuard, service="records-api", mode_of=lambda: layer_mode("user"))
+instrument(app, "records-api")
 
 
 class PatientIn(BaseModel):
