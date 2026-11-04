@@ -36,3 +36,13 @@ V5 removes the standing database password. It rests on two assumptions we had no
 - An open connection survives expiry. The credential is useless but the socket is not closed. A client that holds connections must expect `permission denied` and fetch again.
 - Vault tokens also last 2 minutes here. We did not test renewal, so the `records-api` card has to.
 - The dev-mode manifest in `deploy/vault/vault-dev.yaml` is the spike's. AAL-65 replaces it.
+
+## Decisions made while building
+
+- **Modes follow ADR-0005.** `off` keeps the shared password. `audit` gives `records-api` Vault credentials while the shared password still works. `enforce` also revokes the shared password. Entering `enforce` patches the ConfigMap, waits 3 seconds so the services are already on Vault, then revokes. Leaving it restores the password first.
+- **Vault has its own Postgres admin.** The database engine logs in as `vault_admin`, created at install with a random password that goes to Postgres and Vault over stdin. That is what lets the shared `clinic` password be revoked without breaking Vault.
+- **A rejected password is attributed by inference.** The attack runner reports a new `auth` phase, and the observer names `secrets (inferred)` when the layer is enforced. A mistyped password would be named the same way.
+- **The Secrets view reads Vault's audit log.** The audit device writes to the pod's stdout. The log hashes usernames and passwords and carries no TTL, so the view shows holder and lease, and takes the lifetime from the role (120 seconds, checked by a test).
+- **External Secrets uses Kubernetes auth, not the JWT-SVID.** The operator has no SPIFFE socket, so Vault checks its service account token through the Kubernetes API. The Vault role may read one path. Only the controller is installed, without the webhook or cert controller, to save memory.
+- **Not changed:** open connections still outlive their credential, Vault token renewal is untested because `records-api` fetches a new login each time, and CA rotation has not been watched.
+

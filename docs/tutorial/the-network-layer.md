@@ -8,7 +8,7 @@ You need the clinic deployed (`make clinic`), the observer running (`make observ
 
 ```console
 $ make attack A=read-postgres
-read-postgres: SUCCEEDS   [identity=off, mtls=off, network=off]
+read-postgres: SUCCEEDS   [identity=off, mtls=off, secrets=off, network=off]
 expected succeeds: as expected
 {
   "rows": 5,
@@ -24,7 +24,7 @@ Open **Layers** and set **Network policy** to **Enforce**, or run:
 
 ```console
 $ curl -s -X PUT localhost:8765/layers/network -H 'content-type: application/json' -d '{"mode":"enforce"}'
-{"identity":"off","mtls":"off","network":"enforce"}
+{"identity":"off","mtls":"off","secrets":"off","network":"enforce"}
 ```
 
 The controller applied a set of Kubernetes NetworkPolicies. Look at them:
@@ -50,7 +50,7 @@ The layer only restricts incoming connections. Outgoing traffic is open, because
 
 ```console
 $ make attack A=read-postgres
-read-postgres: BLOCKED   [identity=off, mtls=off, network=enforce]
+read-postgres: BLOCKED   [identity=off, mtls=off, secrets=off, network=enforce]
 expected blocked: as expected
 stopped by: network (inferred)
 {
@@ -72,7 +72,7 @@ The attacker pod is an outsider. A more worrying case is a pod that already belo
 
 ```console
 $ make attack A=postgres-from-billing
-postgres-from-billing: BLOCKED   [identity=off, mtls=off, network=enforce]
+postgres-from-billing: BLOCKED   [identity=off, mtls=off, secrets=off, network=enforce]
 expected blocked: as expected
 stopped by: network (inferred)
 {
@@ -105,18 +105,18 @@ Turn the network layer off and mTLS on. The controller wants identity on first, 
 $ curl -s -X PUT localhost:8765/layers/network -H 'content-type: application/json' -d '{"mode":"off"}'
 $ curl -s -X PUT localhost:8765/layers/identity -H 'content-type: application/json' -d '{"mode":"audit"}'
 $ curl -s -X PUT localhost:8765/layers/mtls -H 'content-type: application/json' -d '{"mode":"enforce"}'
-{"identity":"audit","mtls":"enforce","network":"off"}
+{"identity":"audit","mtls":"enforce","secrets":"off","network":"off"}
 ```
 
 Wait a few seconds for the services to pick up the change, then run two attacks:
 
 ```console
 $ make attack A=no-identity-records
-no-identity-records: BLOCKED   [identity=audit, mtls=enforce, network=off]
+no-identity-records: BLOCKED   [identity=audit, mtls=enforce, secrets=off, network=off]
 expected blocked: as expected
 stopped by: mtls
 $ make attack A=read-postgres
-read-postgres: SUCCEEDS   [identity=audit, mtls=enforce, network=off]
+read-postgres: SUCCEEDS   [identity=audit, mtls=enforce, secrets=off, network=off]
 expected succeeds: as expected
 {
   "rows": 5,
@@ -132,9 +132,9 @@ Turn the network layer back on, with mTLS still enforced, and run the attack tha
 
 ```console
 $ curl -s -X PUT localhost:8765/layers/network -H 'content-type: application/json' -d '{"mode":"enforce"}'
-{"identity":"audit","mtls":"enforce","network":"enforce"}
+{"identity":"audit","mtls":"enforce","secrets":"off","network":"enforce"}
 $ make attack A=no-identity-records
-no-identity-records: BLOCKED   [identity=audit, mtls=enforce, network=enforce]
+no-identity-records: BLOCKED   [identity=audit, mtls=enforce, secrets=off, network=enforce]
 expected blocked: as expected
 stopped by: network (inferred)
 ```
@@ -143,7 +143,7 @@ Now the network stops it first, so mTLS never sees a request and never logs one.
 
 ```console
 $ make attack A=forged-identity
-forged-identity: BLOCKED   [identity=audit, mtls=enforce, network=enforce]
+forged-identity: BLOCKED   [identity=audit, mtls=enforce, secrets=off, network=enforce]
 expected blocked: as expected
 stopped by: network (inferred)
 ```
