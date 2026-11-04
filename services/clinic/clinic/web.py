@@ -4,9 +4,11 @@ from pathlib import Path
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import FileResponse
 
+from . import login
 from .common import client, instrument
 
 app = instrument(FastAPI(title="web"), "web")
+app.include_router(login.router)
 RECORDS = os.environ.get("RECORDS_URL", "http://records-api.clinic.svc:8080")
 BILLING = os.environ.get("BILLING_URL", "http://billing.clinic.svc:8080")
 AGENT = os.environ.get("AGENT_URL", "http://agent.agents.svc:8080")

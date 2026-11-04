@@ -58,7 +58,7 @@ e2e: ## browser tests against the live cluster (needs make up, echo, clinic and 
 hooks: ## enable the pre-push hook
 	git config core.hooksPath .githooks
 
-.PHONY: clinic web attack vault eso keycloak
+.PHONY: clinic web attack vault eso keycloak keycloak-ui
 attack: ## run an attack from the attacker pod: make attack A=<name> (no A lists them)
 	@python3 scripts/attack.py $(A)
 
@@ -84,6 +84,9 @@ keycloak: ## install the dev Keycloak and create the clinic realm (needs make up
 	sed 's|KEYCLOAK_IMAGE|$(KEYCLOAK_IMAGE)|' deploy/keycloak/keycloak.yaml | kubectl --context $(CTX) apply -f -
 	kubectl --context $(CTX) -n keycloak rollout status deploy/keycloak --timeout=300s
 	sh scripts/keycloak-configure.sh
+
+keycloak-ui: ## forward Keycloak to http://localhost:8180 so the browser can sign in (leave it running)
+	kubectl --context $(CTX) -n keycloak port-forward svc/keycloak 8180:8080
 
 eso: ## install External Secrets and sync one secret from Vault (needs make vault)
 	@helm repo add external-secrets https://charts.external-secrets.io >/dev/null 2>&1 || true
