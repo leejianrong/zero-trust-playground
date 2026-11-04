@@ -6,3 +6,4 @@ metadata: {name: layer-modes, namespace: clinic}
 data:
   identity: "off"
   mtls: "off"
+  secrets: "off"

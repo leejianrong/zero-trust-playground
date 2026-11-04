@@ -34,6 +34,16 @@ export const LAYERS: LayerInfo[] = [
     },
   },
   {
+    id: "secrets",
+    name: "Short-lived secrets",
+    what: "The database password stops being shared and permanent. Vault hands records-api a user that lasts two minutes.",
+    modes: {
+      off: "records-api connects to Postgres with the one static password in a Secret.",
+      audit: "records-api uses Vault users that last two minutes. The static password still works, so a leaked copy is still good.",
+      enforce: "Same as audit, and the static password is revoked, so a leaked copy no longer works.",
+    },
+  },
+  {
     id: "network",
     name: "Network policy",
     what: "Kubernetes decides which pods may open a connection to which. Anything not on the list is dropped.",

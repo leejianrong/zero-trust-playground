@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 const OBSERVER = "http://localhost:8765";
 const put = (page: Page, layer: string, mode: string) => page.request.put(`${OBSERVER}/layers/${layer}`, { data: { mode } });
-const reset = async (page: Page) => { await put(page, "network", "off"); await put(page, "mtls", "off"); await put(page, "identity", "off"); };
+const reset = async (page: Page) => { await put(page, "secrets", "off"); await put(page, "network", "off"); await put(page, "mtls", "off"); await put(page, "identity", "off"); };
 
 test.beforeEach(async ({ page }) => reset(page));
 test.afterEach(async ({ page }) => reset(page));
@@ -11,7 +11,7 @@ test("each layer names its pattern component and the unbuilt ones say so", async
   await page.goto("/#architecture");
   await expect(page.getByText("SPIFFE and SPIRE", { exact: true })).toBeVisible();
   await expect(page.getByText("HashiCorp Vault and External Secrets")).toBeVisible();
-  await expect(page.getByLabel("Short-lived secrets: Not built yet")).toBeVisible();
+  await expect(page.getByLabel("User identity: Not built yet")).toBeVisible();
   await page.screenshot({ path: "e2e/screenshots/architecture-off.png", fullPage: true });
 });
 

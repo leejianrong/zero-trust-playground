@@ -56,8 +56,9 @@ def test_with_secrets_off_the_static_password_is_used(monkeypatch):
     assert (seen["user"], seen["password"]) == ("clinic", "static-pw")
 
 
-def test_with_secrets_enforced_the_vault_credential_is_used(monkeypatch):
-    seen = patch_connect(monkeypatch, "enforce", creds(lambda: ("dyn", "dynpw", 120)))
+@pytest.mark.parametrize("mode", ["audit", "enforce"])
+def test_with_secrets_on_the_vault_credential_is_used(monkeypatch, mode):
+    seen = patch_connect(monkeypatch, mode, creds(lambda: ("dyn", "dynpw", 120)))
     records_api.connect()
     assert (seen["user"], seen["password"]) == ("dyn", "dynpw")
 

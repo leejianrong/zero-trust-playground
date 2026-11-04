@@ -22,7 +22,7 @@ creds = vault.Credentials()
 
 def connect():
     user, password = os.environ.get("DB_USER", "clinic"), os.environ["DB_PASSWORD"]
-    if layer_mode("secrets") == "enforce":  # no standing password: a two-minute user from Vault
+    if layer_mode("secrets") != "off":  # audit: Vault users while the static password still works. enforce: it is revoked
         try:
             user, password = creds.get()
         except vault.VaultError as exc:

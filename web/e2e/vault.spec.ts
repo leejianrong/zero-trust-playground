@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type APIRequestContext } from "@playwright/test";
 import { execFileSync, spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 
@@ -101,12 +101,15 @@ test("an issued user stops working after its TTL", async () => {
   expect(inRecordsApi(COUNT, c).ok).toBe(false);
 });
 
-// AAL-66: records-api runs on Vault credentials and keeps serving as they rotate. The mode is patched into the
-// ConfigMap directly here; the controller takes over in AAL-67.
+// AAL-66 and AAL-67: records-api runs on Vault credentials and keeps serving as they rotate, with the static
+// password revoked by the controller.
+const OBSERVER = "http://localhost:8765";
 const WEB = "http://localhost:8081";
 const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
-const setSecrets = (mode: string) =>
-  execFileSync("kubectl", [...KUBECTL, "-n", "clinic", "patch", "configmap", "layer-modes", "--type", "merge", "-p", JSON.stringify({ data: { secrets: mode } })]);
+const setSecrets = async (request: APIRequestContext, mode: string) => {
+  const r = await request.put(`${OBSERVER}/layers/secrets`, { data: { mode }, timeout: 60_000 });
+  expect(r.ok(), `secrets to ${mode}: ${await r.text()}`).toBe(true);
+};
 const issuedUsers = (): Set<string> => {
   const logs = execFileSync("kubectl", [...KUBECTL, "-n", "clinic", "logs", "deploy/records-api", "--since=10m"], { encoding: "utf8" });
   return new Set(logs.split("\n").filter((l) => l.includes("credential_issued")).map((l) => JSON.parse(l).user));
@@ -114,25 +117,28 @@ const issuedUsers = (): Set<string> => {
 
 test("records-api serves across two rotations with the static password revoked", async ({ request }) => {
   test.setTimeout(330_000);
+  // A restart empties the credential cache, so the first credential and both rotations land inside the window.
+  execFileSync("kubectl", [...KUBECTL, "-n", "clinic", "rollout", "restart", "deploy/records-api"]);
+  execFileSync("kubectl", [...KUBECTL, "-n", "clinic", "rollout", "status", "deploy/records-api", "--timeout=90s"]);
   const before = issuedUsers();
-  setSecrets("enforce");
-  execFileSync("sh", [`${ROOT}/scripts/db-static.sh`, "revoke"]);
+  await setSecrets(request, "enforce");
   try {
-    await sleep(5_000); // services poll the ConfigMap every 2 seconds
     for (const end = Date.now() + 200_000; Date.now() < end; await sleep(10_000)) {
       expect((await request.get(`${WEB}/api/patients`)).status()).toBe(200);
     }
     const fresh = [...issuedUsers()].filter((u) => !before.has(u));
     expect(fresh.length).toBeGreaterThanOrEqual(3); // the first credential plus two rotations
+    const pw = staticPassword();
+    expect(inRecordsApi(COUNT, { user: "clinic", password: pw }).ok, "the static password is revoked").toBe(false);
   } finally {
-    execFileSync("sh", [`${ROOT}/scripts/db-static.sh`, "restore"]);
-    setSecrets("off");
+    await setSecrets(request, "off");
   }
+  expect(inRecordsApi(COUNT, { user: "clinic", password: staticPassword() }).ok, "off restores it").toBe(true);
 });
 
 test("with secrets off records-api still uses the static password", async ({ request }) => {
   const before = issuedUsers();
-  setSecrets("off");
+  await setSecrets(request, "off");
   await sleep(5_000);
   expect((await request.get(`${WEB}/api/patients`)).status()).toBe(200);
   expect(issuedUsers().size).toBe(before.size);

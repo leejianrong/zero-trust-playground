@@ -141,7 +141,7 @@ def test_running_an_attack_records_its_result_and_the_expectation():
         .post("/attacks/read-postgres/run").json()
     jsonschema.validate({k: v for k, v in body.items()}, SCHEMA)
     assert (body["verdict"], body["dst"], body["evidence"]["expected"]) == ("allow", "postgres", "succeeds")
-    assert body["evidence"]["modes"] == {"identity": "off", "mtls": "off", "network": "off"} and body["evidence"]["as_expected"] is True
+    assert body["evidence"]["modes"] == {"identity": "off", "mtls": "off", "secrets": "off", "network": "off"} and body["evidence"]["as_expected"] is True
     assert store.since(0)[0]["kind"] == "attack_result"
 
 
