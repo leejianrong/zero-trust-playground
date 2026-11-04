@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import re
 from pathlib import Path
 
 from observer import network
@@ -57,11 +58,11 @@ def test_every_authz_caller_has_a_network_edge():
 
 
 def test_every_policy_destination_exists_in_the_manifests():
-    manifests = "".join(p.read_text() for p in (Path(__file__).resolve().parents[3] / "deploy").rglob("*.yaml"))
+    manifests = "\n".join(p.read_text() for p in (Path(__file__).resolve().parents[3] / "deploy").rglob("*.yaml"))
     for _, app, sources, _ in network.EDGES:
-        assert f"app: {app}" in manifests
+        assert re.search(rf"app: {re.escape(app)}[}},\s]", manifests)
         for _, src in sources or []:
-            assert f"app: {src}" in manifests
+            assert re.search(rf"app: {re.escape(src)}[}},\s]", manifests)
 
 
 class Kube:
@@ -98,3 +99,38 @@ def test_a_partial_set_is_not_applied():
     network.apply(kube)
     del kube.have[("clinic", "allow-billing")]
     assert not network.applied(kube)
+
+
+def test_the_poller_survives_a_missing_kubectl():
+    import asyncio
+
+    calls = []
+
+    def lister():
+        calls.append(1)
+        if len(calls) == 1:
+            raise FileNotFoundError("kubectl")
+        return {}
+
+    async def go():
+        watch = network.Watch(lambda ev: None, lister=lister, interval=0)
+        task = asyncio.create_task(watch.run())
+        await asyncio.sleep(0.05)
+        task.cancel()
+        return len(calls)
+
+    assert asyncio.run(go()) > 1
+
+
+def test_a_hung_kubectl_becomes_a_runtime_error(monkeypatch):
+    import subprocess
+
+    import pytest
+
+    def hang(*a, **kw):
+        assert kw.get("timeout")
+        raise subprocess.TimeoutExpired("kubectl", kw["timeout"])
+
+    monkeypatch.setattr(network.subprocess, "run", hang)
+    with pytest.raises(RuntimeError):
+        network.kubectl("get", "pods")

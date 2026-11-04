@@ -53,7 +53,10 @@ def protects(app: str) -> bool:
 
 
 def kubectl(*args, stdin=None) -> str:
-    done = subprocess.run([*KUBECTL, *args], check=False, input=stdin, text=True, capture_output=True)
+    try:
+        done = subprocess.run([*KUBECTL, *args], check=False, input=stdin, text=True, capture_output=True, timeout=15)
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("kubectl timed out") from exc
     if done.returncode:
         raise RuntimeError(done.stderr.strip())
     return done.stdout
@@ -119,7 +122,7 @@ class Watch:
             try:
                 async with self.lock:
                     await self.sync()
-            except (RuntimeError, json.JSONDecodeError, KeyError):
+            except (RuntimeError, OSError, json.JSONDecodeError, KeyError):
                 pass  # cluster not reachable yet; try again
             await asyncio.sleep(self.interval)
 
