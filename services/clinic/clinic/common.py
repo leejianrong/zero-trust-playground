@@ -21,6 +21,11 @@ def emit(**fields):
 _runtime: dict = {}
 
 
+def layer_mode(layer: str) -> str:
+    modes = _runtime.get("modes")
+    return modes.get(layer) if modes else "off"
+
+
 def start_background(service: str):
     """Start following the layer modes and fetching this workload's identity.
 

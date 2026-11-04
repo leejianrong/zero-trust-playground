@@ -5,7 +5,8 @@ import psycopg
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from .common import instrument
+from . import vault
+from .common import instrument, layer_mode
 
 app = instrument(FastAPI(title="records-api"), "records-api")
 
@@ -16,10 +17,18 @@ class PatientIn(BaseModel):
     diagnosis: str = Field(max_length=200)
 
 
+creds = vault.Credentials()
+
+
 def connect():
+    user, password = os.environ.get("DB_USER", "clinic"), os.environ["DB_PASSWORD"]
+    if layer_mode("secrets") == "enforce":  # no standing password: a two-minute user from Vault
+        try:
+            user, password = creds.get()
+        except vault.VaultError as exc:
+            raise HTTPException(503, str(exc)) from exc
     return psycopg.connect(host=os.environ["DB_HOST"], dbname=os.environ.get("DB_NAME", "clinic"),
-                           user=os.environ.get("DB_USER", "clinic"), password=os.environ["DB_PASSWORD"],
-                           connect_timeout=5)
+                           user=user, password=password, connect_timeout=5)
 
 
 def row(r):
