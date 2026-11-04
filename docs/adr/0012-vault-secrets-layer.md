@@ -1,6 +1,6 @@
 # ADR-0012: Vault logs workloads in with a JWT-SVID and issues short-lived Postgres users
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-04
 - Deciders: user, agent
 

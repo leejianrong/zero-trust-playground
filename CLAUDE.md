@@ -13,6 +13,7 @@ Slices V1 (SPIRE identity), V2 (unprotected clinic app and attacker; attacks run
 - `make echo`: build and deploy the V1 spike workloads
 - `make clinic`: build and deploy web, records-api, billing, postgres and the attacker pod
 - `make attack A=<name>`: run an attack from the attacker pod via the observer (no `A` lists them)
+- `make vault`: install the throwaway dev Vault and configure JWT login for each clinic service (ADR-0012)
 - `make web`: port-forward the clinic app to http://localhost:8081 (a real CRUD page: list, add, edit, delete patients)
 - `make headlamp` / `make headlamp-ui` / `make headlamp-token`: the cluster dashboard (read-only token; `ROLE=admin` for the contrast). Never print or log the token.
 - `make docs` / `make docs-build`: the Zensical tutorial in `docs/tutorial/` (a page per slice ships with the slice; `scripts/check_docs_commands.py` fails on unknown make targets)
