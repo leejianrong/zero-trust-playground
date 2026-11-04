@@ -20,9 +20,25 @@ kubectl --context "$CTX" -n spire-server get cm spire-bundle -o jsonpath='{.data
   while read -r cert; do echo "-----BEGIN CERTIFICATE-----"; echo "$cert" | fold -w64; echo "-----END CERTIFICATE-----"; done |
   vault write auth/jwt/config jwks_url="$KEYS" bound_issuer="$ISSUER" jwks_ca_pem=- >/dev/null
 
-# One role per service, bound to that service's SPIFFE ID. No policy yet: later cards add what each may read.
+# Vault gets its own Postgres admin, so the app's static password is not the one Vault depends on and can be revoked.
+# The password is random on every run, goes to Postgres and Vault over stdin, and is never printed.
+ADMIN_PW=$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')
+printf "DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='vault_admin') THEN CREATE ROLE vault_admin LOGIN SUPERUSER; END IF; END \$\$;\nALTER ROLE vault_admin PASSWORD '%s';\n" "$ADMIN_PW" |
+  kubectl --context "$CTX" -n clinic exec -i deploy/postgres -- psql -q -U clinic -d clinic -v ON_ERROR_STOP=1 >/dev/null
+
+vault secrets list -format=json | grep -q '"database/"' || vault secrets enable database >/dev/null
+jq -n --arg pw "$ADMIN_PW" '{plugin_name:"postgresql-database-plugin", allowed_roles:"records-api", username:"vault_admin", password:$pw,
+  connection_url:"postgresql://{{username}}:{{password}}@postgres.clinic.svc.cluster.local:5432/clinic?sslmode=disable"}' |
+  vault write database/config/clinic - >/dev/null
+# A credential lasts two minutes and cannot be extended.
+vault write database/roles/records-api db_name=clinic default_ttl=2m max_ttl=2m \
+  creation_statements="CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}'; GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO \"{{name}}\"; GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO \"{{name}}\";" >/dev/null
+echo 'path "database/creds/records-api" { capabilities = ["read"] }' | vault policy write records-api - >/dev/null
+
+# One role per service, bound to that service's SPIFFE ID. Only records-api may read database credentials.
 for svc in $SERVICES; do
+  policy=default; [ "$svc" = records-api ] && policy=records-api
   vault write "auth/jwt/role/$svc" role_type=jwt user_claim=sub bound_audiences=vault \
-    bound_subject="spiffe://$TRUST_DOMAIN/ns/clinic/sa/$svc" token_ttl=2m token_policies=default >/dev/null
+    bound_subject="spiffe://$TRUST_DOMAIN/ns/clinic/sa/$svc" token_ttl=2m token_policies="$policy" >/dev/null
 done
-echo "vault configured: jwt auth trusts $ISSUER, roles: $SERVICES"
+echo "vault configured: jwt auth trusts $ISSUER, roles: $SERVICES, database credentials for records-api"
