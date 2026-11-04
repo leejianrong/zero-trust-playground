@@ -110,9 +110,9 @@ def fake_exec(output):
     return exec_in
 
 
-def fake_kube(mtls="off"):
+def fake_kube(mtls="off", secrets="off"):
     async def kube(*args):
-        return json.dumps({"data": {"identity": "off" if mtls == "off" else "enforce", "mtls": mtls}})
+        return json.dumps({"data": {"identity": "off" if mtls == "off" else "enforce", "mtls": mtls, "secrets": secrets}})
     return kube
 
 
@@ -141,7 +141,7 @@ def test_running_an_attack_records_its_result_and_the_expectation():
         .post("/attacks/read-postgres/run").json()
     jsonschema.validate({k: v for k, v in body.items()}, SCHEMA)
     assert (body["verdict"], body["dst"], body["evidence"]["expected"]) == ("allow", "postgres", "succeeds")
-    assert body["evidence"]["modes"] == {"identity": "off", "mtls": "off", "network": "off"} and body["evidence"]["as_expected"] is True
+    assert body["evidence"]["modes"] == {"identity": "off", "mtls": "off", "secrets": "off", "network": "off"} and body["evidence"]["as_expected"] is True
     assert store.since(0)[0]["kind"] == "attack_result"
 
 
@@ -420,3 +420,17 @@ class NetPartial(NetUp):
 
 def test_a_connect_failure_with_a_partial_network_is_attributed_to_it_as_inferred():
     assert run_with_net("read-postgres", "connect", net=NetPartial)["stopped_by"] == "network (inferred)"
+
+
+def run_auth_failure(secrets):
+    out = attack_out("read-postgres", "blocked", evidence={"phase": "auth"})
+    app = create_app(Store(), sources=(), exec_in=fake_exec(out), kube=fake_kube("off", secrets), wait=no_wait, net=NoNet)
+    return TestClient(app).post("/attacks/read-postgres/run").json()["evidence"]
+
+
+def test_a_rejected_password_with_secrets_enforced_is_attributed_to_secrets_as_inferred():
+    assert run_auth_failure("enforce")["stopped_by"] == "secrets (inferred)"
+
+
+def test_a_rejected_password_with_secrets_not_enforced_is_not_attributed():
+    assert run_auth_failure("audit").get("stopped_by") is None

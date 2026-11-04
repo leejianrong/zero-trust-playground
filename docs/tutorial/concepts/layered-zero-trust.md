@@ -26,7 +26,7 @@ This playground borrows the Layer 0 ideas and the Layer 2 idea of a real app, on
 |---|---|---|
 | SPIFFE and SPIRE (workload identity) | SPIRE on k3d, one identity per service account | Built. Services use their identities for mutual TLS (see [Turn on mutual TLS](../layers-and-mtls.md)). |
 | Network policies | Default-deny with explicit allows | Built. See [Turn on the network layer](../the-network-layer.md). |
-| HashiCorp Vault and External Secrets | Short-lived database credentials | Not built yet |
+| HashiCorp Vault and External Secrets | Short-lived database credentials | Built. See [Turn on the secrets layer](../the-secrets-layer.md). |
 | Keycloak (users) | One login client per app | Not built yet |
 | Certificate management | A short-lived CA for TLS | Not built yet |
 | Runtime monitoring | A detector that removes a compromised pod | Optional, last |

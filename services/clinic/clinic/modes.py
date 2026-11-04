@@ -57,5 +57,6 @@ class Modes:
                 time.sleep(self._interval)
 
         if os.path.exists(f"{SA}/token"):
+            self.refresh()  # know the modes before serving: a new pod must not run as `off` until the first poll
             threading.Thread(target=loop, daemon=True).start()
         return self

@@ -1,0 +1,40 @@
+# LABELLED THROWAWAY: Vault in dev mode (ADR-0012). In memory, unsealed, with a fixed root token. Localhost only.
+# Restarting the pod wipes it, so `make vault` configures it again from nothing. The image comes from versions.env.
+apiVersion: v1
+kind: Namespace
+metadata: {name: vault}
+---
+# Vault checks External Secrets' service account token by asking the Kubernetes API who owns it.
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: vault, namespace: vault}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: {name: vault-token-review}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: "system:auth-delegator"}
+subjects: [{kind: ServiceAccount, name: vault, namespace: vault}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: vault, namespace: vault}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: vault}}
+  template:
+    metadata: {labels: {app: vault}}
+    spec:
+      serviceAccountName: vault
+      containers:
+      - name: vault
+        image: VAULT_IMAGE
+        args: ["server", "-dev", "-dev-listen-address=0.0.0.0:8200", "-dev-root-token-id=playground-dev-root"]
+        ports: [{containerPort: 8200}]
+        readinessProbe: {httpGet: {path: /v1/sys/health, port: 8200}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: vault, namespace: vault}
+spec:
+  selector: {app: vault}
+  ports: [{port: 8200}]

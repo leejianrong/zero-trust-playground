@@ -5,10 +5,13 @@
   import Layers from "./lib/Layers.svelte";
   import { reduce, type Cards, type Ev } from "./lib/identity";
   import SvidCard from "./lib/SvidCard.svelte";
+  import Secrets from "./lib/Secrets.svelte";
+  import { reduce as reduceSecrets, type Credentials, type SecretEv } from "./lib/secrets";
 
   const VIEWS = [
     { id: "explore", label: "Explore", blurb: "Every tool in the playground, what it is for, and whether it is running." },
     { id: "identity", label: "Identity", blurb: "Every workload gets a short-lived SPIFFE identity from SPIRE and swaps it for a fresh one before it runs out." },
+    { id: "secrets", label: "Secrets", blurb: "The database credentials Vault hands out. Each one lasts two minutes, then a new one replaces it." },
     { id: "architecture", label: "Architecture", blurb: "The clinic's call paths and the layers around them. It follows the switches on the Layers view." },
     { id: "layers", label: "Layers", blurb: "Switch each layer off, audit or enforce, then run the attacks again to see what changes." },
   ] as const;
@@ -17,6 +20,7 @@
   const fromHash = (): ViewId => (VIEWS.find((v) => `#${v.id}` === location.hash)?.id ?? "explore");
   let view = $state<ViewId>("explore");
   let cards = $state<Cards>({});
+  let creds = $state<Credentials>({ live: [], refused: [] });
   let now = $state(Date.now());
   let offline = $state(false);
   let theme = $state<"light" | "dark" | "system">("system");
@@ -34,6 +38,7 @@
     es.onmessage = (m) => {
       const ev = JSON.parse(m.data) as Ev;
       cards = reduce(cards, ev);
+      creds = reduceSecrets(creds, JSON.parse(m.data) as SecretEv);
     };
     const onHash = () => (view = fromHash());
     addEventListener("hashchange", onHash);
@@ -92,6 +97,8 @@
         {/each}
       </div>
     {/if}
+  {:else if view === "secrets"}
+    <Secrets {creds} {now} />
   {:else if view === "architecture"}
     <Architecture />
   {:else if view === "layers"}

@@ -4,7 +4,7 @@ import functools
 import json
 import time
 
-from .normalize import diff_entries, entry_key, from_log_line, from_postgres_line
+from .normalize import diff_entries, entry_key, from_log_line, from_postgres_line, from_vault_audit
 
 KUBECTL = ["kubectl", "--context", "k3d-ztp"]
 SPIRE_CLI = ["-n", "spire-server", "exec", "spire-server-0", "-c", "spire-server", "--",
@@ -69,6 +69,10 @@ async def _parse_postgres(text):
     return from_postgres_line(text, await pod_by_ip())
 
 
+async def _parse_vault(text):
+    return from_vault_audit(text)
+
+
 # Services whose request logs become Topology events, by namespace. A test checks this against the
 # deployed manifests, so a new service cannot be added and quietly left out.
 TRAFFIC = {"clinic": ["web", "records-api", "billing", "records-mcp"], "agents": ["agent"]}
@@ -82,4 +86,8 @@ service_logs = [functools.partial(tail_logs, namespace=ns, selector=f"app in ({'
 postgres_connections = functools.partial(tail_logs, namespace="clinic", selector="app=postgres",
                                          parse=_parse_postgres, tail=0)
 
-ALL = (spire_entries, workload_logs, *service_logs, postgres_connections)
+# Vault's audit device writes to the pod's stdout. A recent backfill lets the Secrets view show credentials that
+# are still alive after the observer restarts; emit() drops repeats by lease id.
+vault_audit = functools.partial(tail_logs, namespace="vault", selector="app=vault", parse=_parse_vault, tail=50)
+
+ALL = (spire_entries, workload_logs, *service_logs, postgres_connections, vault_audit)

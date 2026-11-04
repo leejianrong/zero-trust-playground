@@ -58,7 +58,7 @@ e2e: ## browser tests against the live cluster (needs make up, echo, clinic and 
 hooks: ## enable the pre-push hook
 	git config core.hooksPath .githooks
 
-.PHONY: clinic web attack
+.PHONY: clinic web attack vault eso
 attack: ## run an attack from the attacker pod: make attack A=<name> (no A lists them)
 	@python3 scripts/attack.py $(A)
 
@@ -74,6 +74,19 @@ clinic: ## build and deploy the clinic app (web, records-api, billing, postgres)
 	kubectl --context $(CTX) -n clinic rollout status deploy/postgres deploy/web deploy/records-api deploy/billing deploy/records-mcp --timeout=180s
 	kubectl --context $(CTX) -n agents rollout status deploy/agent --timeout=120s
 	kubectl --context $(CTX) -n attacker rollout status deploy/attacker --timeout=120s
+
+vault: ## install the dev Vault and configure JWT login for each clinic service (needs make up and clinic)
+	sed 's|VAULT_IMAGE|$(VAULT_IMAGE)|' deploy/vault/vault.yaml | kubectl --context $(CTX) apply -f -
+	kubectl --context $(CTX) -n vault rollout status deploy/vault --timeout=180s
+	sh scripts/vault-configure.sh
+
+eso: ## install External Secrets and sync one secret from Vault (needs make vault)
+	@helm repo add external-secrets https://charts.external-secrets.io >/dev/null 2>&1 || true
+	@helm repo update external-secrets >/dev/null
+	helm --kube-context $(CTX) upgrade --install external-secrets external-secrets/external-secrets --version $(ESO_CHART) \
+	  -n external-secrets --create-namespace -f deploy/eso/values.yaml --wait --timeout 5m
+	kubectl --context $(CTX) apply -f deploy/eso/store.yaml
+	kubectl --context $(CTX) -n clinic wait --for=condition=Ready externalsecret/billing-api-key --timeout=120s
 
 web: ## open the clinic app at http://localhost:8081 (port-forward, Ctrl-C to stop)
 	kubectl --context $(CTX) -n clinic port-forward svc/web 8081:8080

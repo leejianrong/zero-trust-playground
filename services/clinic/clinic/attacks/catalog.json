@@ -2,13 +2,19 @@
   {
     "name": "read-postgres",
     "title": "Read patient records straight from Postgres",
-    "description": "From the attacker pod, log in to Postgres with the shared static password and dump the patients table.",
+    "description": "From the attacker pod, log in to Postgres with the shared static password (the one the secrets layer revokes) and dump the patients table.",
     "expected": {
       "default": "succeeds",
       "rules": [
         {
           "when": {
             "network": "enforce"
+          },
+          "outcome": "blocked"
+        },
+        {
+          "when": {
+            "secrets": "enforce"
           },
           "outcome": "blocked"
         }
@@ -30,6 +36,12 @@
         {
           "when": {
             "network": "enforce"
+          },
+          "outcome": "blocked"
+        },
+        {
+          "when": {
+            "secrets": "enforce"
           },
           "outcome": "blocked"
         }

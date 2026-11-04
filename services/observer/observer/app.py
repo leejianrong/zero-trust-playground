@@ -8,7 +8,7 @@ from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from . import adapters, layers, links, network
+from . import adapters, layers, links, network, secrets
 from .normalize import event
 from .store import Store
 
@@ -29,7 +29,7 @@ class ModeChange(BaseModel):
 
 
 def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl_exec, catalog=CATALOG,
-               probe_url=links.probe, kube=kubectl, wait=asyncio.sleep, net=network):
+               probe_url=links.probe, kube=kubectl, wait=asyncio.sleep, net=network, sec=secrets):
     store = store or Store("observer.db")
     attacks = {a["name"]: a for a in json.loads(Path(catalog).read_text())}
 
@@ -78,6 +78,8 @@ def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl
         after the request, so look a few times. A refusal at the TLS handshake has no request, so no event.
         A refused connection never reaches a workload, so there is nothing to wait for: if the network layer is
         enforced and covers the target, name it, as an inference (ADR-0011)."""
+        if phase == "auth":  # a rejected password while the static one is revoked: the secrets layer did it (inferred)
+            return "secrets (inferred)" if modes.get("secrets") == "enforce" else None
         if phase == "connect":
             return "network (inferred)" if modes["network"] != "off" and net.protects(target) else None
         for _ in range(6 if trace else 0):
@@ -157,8 +159,15 @@ def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl
                 await cluster(net.apply if body.mode == "enforce" else net.remove)
                 await synced(watch, "controller")
         else:
+            if layer == "secrets" and body.mode != "off" and not await cluster(sec.vault_ready):
+                raise HTTPException(409, "Vault is not installed: run `make vault` first")
             ns, name = layers.CONFIGMAP
+            if layer == "secrets" and before[layer] == "enforce" and body.mode != "enforce":
+                await cluster(lambda: sec.set_static("restore"))  # the static password must work again before services return to it
             await kube("-n", ns, "patch", "configmap", name, "--type", "merge", "-p", layers.patch(layer, body.mode))
+            if layer == "secrets" and body.mode == "enforce" and before[layer] != "enforce":
+                await wait(3)  # services poll the ConfigMap every 2 seconds; they must be on Vault before the static password dies
+                await cluster(lambda: sec.set_static("revoke"))
         if before[layer] != body.mode:
             store.append(event(layer, "layer_mode_changed", "info", src="learner", reason=f"{layer} set to {body.mode}",
                                before=before[layer], after=body.mode))

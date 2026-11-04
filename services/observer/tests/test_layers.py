@@ -42,14 +42,33 @@ class FakeNet:
         self.on = False
 
 
-def make(data=None, net=None):
+class FakeSec:
+    """Stands in for observer.secrets: whether Vault is up, and the order of static-password changes."""
+
+    def __init__(self, ready=True, log=None):
+        self.ready, self.log = ready, log if log is not None else []
+
+    def vault_ready(self):
+        return self.ready
+
+    def set_static(self, action):
+        self.log.append(action)
+
+
+def make(data=None, net=None, sec=None):
     kube, store = FakeKube(data), Store()
-    return TestClient(create_app(store, sources=(), kube=kube, net=net or FakeNet())), kube, store
+    waits = []
+
+    async def wait(seconds):
+        waits.append(seconds)
+
+    app = create_app(store, sources=(), kube=kube, net=net or FakeNet(), sec=sec or FakeSec(), wait=wait)
+    return TestClient(app), kube, store
 
 
 def test_reads_the_current_modes():
     client, _, _ = make({"identity": "enforce"})
-    assert client.get("/layers").json() == {"identity": "enforce", "mtls": "off", "network": "off"}
+    assert client.get("/layers").json() == {"identity": "enforce", "mtls": "off", "secrets": "off", "network": "off"}
 
 
 def test_a_change_is_written_and_announced():
@@ -137,3 +156,47 @@ def test_a_partial_network_is_expected_to_block_like_an_enforced_one():
     attack = {"expected": {"default": "succeeds", "rules": [{"when": {"network": "enforce"}, "outcome": "blocked"}]}}
     assert expected(attack, {"network": "partial"}) == "blocked"
     assert expected(attack, {"network": "off"}) == "succeeds"
+
+
+def ordered(data=None):
+    """An app whose ConfigMap patches and static-password changes land in one log, so their order can be asserted."""
+    log, kube = [], FakeKube(data)
+
+    async def recording(*args):
+        if "patch" in args:
+            log.append("patch")
+        return await kube(*args)
+
+    async def no_wait(_):
+        pass
+
+    app = create_app(Store(), sources=(), kube=recording, net=FakeNet(), sec=FakeSec(log=log), wait=no_wait)
+    return TestClient(app), log
+
+
+def test_secrets_enforce_revokes_the_static_password_after_the_services_have_the_new_mode():
+    client, log = ordered()
+    assert client.put("/layers/secrets", json={"mode": "enforce"}).status_code == 200
+    assert log == ["patch", "revoke"]
+
+
+def test_leaving_secrets_enforce_restores_the_static_password_before_the_services_switch_back():
+    client, log = ordered({"secrets": "enforce"})
+    assert client.put("/layers/secrets", json={"mode": "off"}).status_code == 200
+    assert log == ["restore", "patch"]
+
+
+def test_secrets_audit_issues_credentials_and_leaves_the_static_password_alone():
+    sec = FakeSec()
+    client, kube, _ = make(sec=sec)
+    assert client.put("/layers/secrets", json={"mode": "audit"}).status_code == 200
+    assert kube.data["secrets"] == "audit" and sec.log == []
+
+
+def test_secrets_is_refused_with_a_reason_when_vault_is_not_installed():
+    sec = FakeSec(ready=False)
+    client, kube, store = make(sec=sec)
+    r = client.put("/layers/secrets", json={"mode": "enforce"})
+    assert r.status_code == 409 and "make vault" in r.json()["detail"]
+    assert kube.patches == [] and sec.log == [] and store.since(0) == []
+    assert client.put("/layers/secrets", json={"mode": "off"}).status_code == 200  # off never needs Vault

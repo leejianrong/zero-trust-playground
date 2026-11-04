@@ -11,6 +11,8 @@ Every command runs from the repository root. `make` with no target prints this l
 | `make echo` | Builds and deploys the two identity demo workloads |
 | `make clinic` | Builds the image and deploys `web`, `records-api`, `billing`, `records-mcp`, Postgres, the `agent` and the `attacker` |
 | `make attack A=<name>` | Runs an attack from the attacker pod and prints the outcome and evidence. With no `A`, lists the attacks. Needs `make observer` |
+| `make vault` | Installs a throwaway dev-mode Vault and configures JWT login, database credentials and the audit log. Run it again after Vault restarts |
+| `make eso` | Installs External Secrets and syncs one secret from Vault into the `clinic` namespace. Needs `make vault` |
 | `make web` | Port-forwards the clinic app to <http://localhost:8081> |
 | `make observer` | Runs the observer on port 8765 |
 | `make headlamp` | Installs Headlamp with a read-only login |
@@ -19,7 +21,7 @@ Every command runs from the repository root. `make` with no target prints this l
 | `make docs` | Serves this tutorial at <http://localhost:8000> |
 | `make docs-build` | Builds the tutorial strictly into `site/` |
 | `make test` | Runs unit tests, lint, type checks and the docs checks. No cluster needed |
-| `make e2e` | Runs the browser tests against the live cluster. Needs `make up`, `make echo`, `make clinic` and `make headlamp` |
+| `make e2e` | Runs the browser tests against the live cluster. Needs `make up`, `make echo`, `make clinic`, `make headlamp`, `make vault` and `make eso` |
 | `make hooks` | Turns on the pre-push hook that runs `make test` |
 
 Chart and image versions are pinned in `versions.env`.

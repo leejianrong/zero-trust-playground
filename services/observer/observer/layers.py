@@ -4,7 +4,7 @@ import json
 MODES = ("off", "audit", "enforce")
 # Layers whose mode the services read from the ConfigMap. The network layer is not one of them:
 # its mode is whether the policy set exists in the cluster (observer/network.py).
-CONFIG_LAYERS = ("identity", "mtls")
+CONFIG_LAYERS = ("identity", "mtls", "secrets")
 # Only layers that exist. secrets and user join as their slices land.
 LAYERS = (*CONFIG_LAYERS, "network")
 CONFIGMAP = ("clinic", "layer-modes")

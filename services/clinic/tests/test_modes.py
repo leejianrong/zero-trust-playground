@@ -41,3 +41,10 @@ def test_a_value_that_is_not_a_mode_is_ignored():
     m.refresh()
     m.refresh()
     assert m.get("mtls") == "audit"
+
+
+def test_a_starting_service_knows_the_modes_before_it_serves_anything(monkeypatch):
+    # Otherwise a restarted pod runs as `off` for the first poll: a revoked password is tried, or mTLS is not asked for.
+    monkeypatch.setattr("clinic.modes.os.path.exists", lambda path: True)
+    m = Modes("records-api", fetch=lambda: {"mtls": "enforce", "secrets": "enforce"}, interval=3600).start()
+    assert (m.get("mtls"), m.get("secrets")) == ("enforce", "enforce")

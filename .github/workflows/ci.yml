@@ -53,6 +53,8 @@ jobs:
       - run: make echo
       - run: make clinic
       - run: make headlamp
+      - run: make vault
+      - run: make eso
       - run: uv sync --frozen
         working-directory: services/observer
       - run: npm ci

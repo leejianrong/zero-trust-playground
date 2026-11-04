@@ -1,0 +1,31 @@
+# One static secret, copied from Vault into the clinic namespace. LABELLED THROWAWAY: the value is a placeholder.
+# ESO logs in to Vault as this service account, and Vault's `eso` role allows reading that one path.
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: eso-reader, namespace: clinic}
+---
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata: {name: vault, namespace: clinic}
+spec:
+  provider:
+    vault:
+      server: http://vault.vault.svc:8200
+      path: secret
+      version: v2
+      auth:
+        kubernetes:
+          mountPath: kubernetes
+          role: eso
+          serviceAccountRef: {name: eso-reader}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata: {name: billing-api-key, namespace: clinic}
+spec:
+  refreshInterval: 15s
+  secretStoreRef: {name: vault, kind: SecretStore}
+  target: {name: billing-api-key}
+  data:
+    - secretKey: value
+      remoteRef: {key: clinic/billing-api-key, property: value}
