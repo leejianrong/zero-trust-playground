@@ -6,12 +6,15 @@
   import { reduce, type Cards, type Ev } from "./lib/identity";
   import SvidCard from "./lib/SvidCard.svelte";
   import Secrets from "./lib/Secrets.svelte";
+  import UsersView from "./lib/Users.svelte";
+  import { reduce as reduceUsers, type UserEv, type Users } from "./lib/users";
   import { reduce as reduceSecrets, type Credentials, type SecretEv } from "./lib/secrets";
 
   const VIEWS = [
     { id: "explore", label: "Explore", blurb: "Every tool in the playground, what it is for, and whether it is running." },
     { id: "identity", label: "Identity", blurb: "Every workload gets a short-lived SPIFFE identity from SPIRE and swaps it for a fresh one before it runs out." },
     { id: "secrets", label: "Secrets", blurb: "The database credentials Vault hands out. Each one lasts two minutes, then a new one replaces it." },
+    { id: "users", label: "Users", blurb: "Who is signed in, which role they hold, and what records-api decided about each request they made." },
     { id: "architecture", label: "Architecture", blurb: "The clinic's call paths and the layers around them. It follows the switches on the Layers view." },
     { id: "layers", label: "Layers", blurb: "Switch each layer off, audit or enforce, then run the attacks again to see what changes." },
   ] as const;
@@ -21,6 +24,7 @@
   let view = $state<ViewId>("explore");
   let cards = $state<Cards>({});
   let creds = $state<Credentials>({ live: [], refused: [] });
+  let users = $state<Users>({ people: {}, requests: [], failures: [] });
   let now = $state(Date.now());
   let offline = $state(false);
   let theme = $state<"light" | "dark" | "system">("system");
@@ -39,6 +43,7 @@
       const ev = JSON.parse(m.data) as Ev;
       cards = reduce(cards, ev);
       creds = reduceSecrets(creds, JSON.parse(m.data) as SecretEv);
+      users = reduceUsers(users, JSON.parse(m.data) as UserEv);
     };
     const onHash = () => (view = fromHash());
     addEventListener("hashchange", onHash);
@@ -99,6 +104,8 @@
     {/if}
   {:else if view === "secrets"}
     <Secrets {creds} {now} />
+  {:else if view === "users"}
+    <UsersView {users} />
   {:else if view === "architecture"}
     <Architecture />
   {:else if view === "layers"}

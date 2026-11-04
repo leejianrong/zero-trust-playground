@@ -4,7 +4,14 @@ import functools
 import json
 import time
 
-from .normalize import diff_entries, entry_key, from_log_line, from_postgres_line, from_vault_audit
+from .normalize import (
+    diff_entries,
+    entry_key,
+    from_keycloak_log,
+    from_log_line,
+    from_postgres_line,
+    from_vault_audit,
+)
 
 KUBECTL = ["kubectl", "--context", "k3d-ztp"]
 SPIRE_CLI = ["-n", "spire-server", "exec", "spire-server-0", "-c", "spire-server", "--",
@@ -90,4 +97,11 @@ postgres_connections = functools.partial(tail_logs, namespace="clinic", selector
 # are still alive after the observer restarts; emit() drops repeats by lease id.
 vault_audit = functools.partial(tail_logs, namespace="vault", selector="app=vault", parse=_parse_vault, tail=50)
 
-ALL = (spire_entries, workload_logs, *service_logs, postgres_connections, vault_audit)
+async def _parse_keycloak(text):
+    return from_keycloak_log(text)
+
+
+# Keycloak's event listener writes to the pod's log. A backfill shows recent sign-ins after an observer restart.
+keycloak_events = functools.partial(tail_logs, namespace="keycloak", selector="app=keycloak", parse=_parse_keycloak, tail=100)
+
+ALL = (spire_entries, workload_logs, *service_logs, postgres_connections, vault_audit, keycloak_events)

@@ -22,6 +22,7 @@ class TokenError(Exception):
 @dataclass
 class Claims:
     user: str
+    subject: str | None
     roles: list[str]
     client: str | None
     audience: list[str]
@@ -51,7 +52,7 @@ class TokenVerifier:
         except jwt.PyJWTError as exc:
             raise TokenError(f"the token is malformed or unusable: {type(exc).__name__}") from exc
         aud = c["aud"] if isinstance(c["aud"], list) else [c["aud"]]
-        return Claims(c.get("preferred_username") or c.get("sub", "unknown"),
+        return Claims(c.get("preferred_username") or c.get("sub", "unknown"), c.get("sub"),
                       [r for r in c.get("realm_access", {}).get("roles", []) if r in PERMISSIONS], c.get("azp"), aud)
 
 
@@ -96,7 +97,7 @@ class UserGuard:
         why, claims, status = self.decide(headers, method)
         verdict = "allow" if why is None else "deny" if mode == "enforce" else "would_deny"
         trace = trace_var.get() or headers.get(b"x-trace-id", b"").decode() or uuid.uuid4().hex[:12]
-        emit(event="user_authz", service=self.service, mode=mode, user=claims.user if claims else None,
+        emit(event="user_authz", service=self.service, mode=mode, user=claims.user if claims else None, subject=claims.subject if claims else None,
              roles=claims.roles if claims else [], client=claims.client if claims else None,
              audience=claims.audience if claims else [], method=method, route=scope["path"],
              verdict=verdict, reason=why, trace=trace)

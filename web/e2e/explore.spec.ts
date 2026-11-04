@@ -3,11 +3,11 @@ import { expect, test } from "@playwright/test";
 
 test("Explore lists every tool, says what each is for, and shows the running ones as up", async ({ page }) => {
   await page.goto("/#explore");
-  for (const name of ["Clinic app", "Headlamp", "Tutorial", "Observer API"]) {
+  for (const name of ["Clinic app", "Headlamp", "Keycloak", "Tutorial", "Observer API"]) {
     await expect(page.getByRole("heading", { name })).toBeVisible();
   }
   const card = (name: string) => page.getByRole("listitem").filter({ has: page.getByRole("heading", { name }) });
-  for (const name of ["Clinic app", "Headlamp", "Observer API"]) {
+  for (const name of ["Clinic app", "Headlamp", "Keycloak", "Observer API"]) {
     await expect(card(name).locator(".chip")).toHaveText(/Up$/);
   }
   await expect(card("Headlamp")).toContainText("read-only token");
