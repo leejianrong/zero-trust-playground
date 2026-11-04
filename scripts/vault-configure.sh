@@ -12,6 +12,8 @@ vault() {
   kubectl --context "$CTX" -n vault exec -i deploy/vault -- env VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=playground-dev-root vault "$@"
 }
 
+# The audit log goes to the pod's stdout, where the observer reads it for the Secrets view.
+vault audit list -format=json | grep -q '"file/"' || vault audit enable file file_path=stdout >/dev/null
 vault auth list -format=json | grep -q '"jwt/"' || vault auth enable jwt >/dev/null
 
 # SPIRE's CA, as PEM, from the trust bundle. Vault needs it to fetch the signing keys over TLS.
