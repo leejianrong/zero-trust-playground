@@ -81,8 +81,14 @@ def events(capsys):
     return [json.loads(line) for line in capsys.readouterr().out.splitlines() if '"user_authz"' in line]
 
 
-async def test_off_trusts_the_header_and_checks_nothing(capsys):
+async def test_off_trusts_the_header_and_logs_who_it_claimed_to_be(capsys):
     assert (await call("off", "DELETE", x_user="anyone"))[0] == 200
+    only = events(capsys)
+    assert len(only) == 1 and only[0]["user"] == "anyone" and only[0]["verdict"] == "allow" and only[0]["mode"] == "off"
+    assert "X-User" in only[0]["reason"] and only[0]["client"] is None and only[0]["roles"] == []
+
+
+async def test_off_without_a_header_checks_nothing_and_logs_nothing(capsys):
     assert (await call("off", "DELETE"))[0] == 200
     assert events(capsys) == []
 
@@ -126,3 +132,21 @@ async def test_health_checks_need_no_token():
 def test_the_verifier_is_built_from_the_environment(monkeypatch):
     monkeypatch.setenv("USER_ISSUER", ISSUER)
     assert userguard.from_env().issuer == ISSUER
+
+
+class DownJwks:
+    def get_signing_key_from_jwt(self, token):
+        raise jwt.PyJWKClientConnectionError("keycloak is not answering")
+
+
+async def test_enforce_says_keycloak_is_unreachable_with_a_503_and_not_a_bad_token(capsys):
+    sent = []
+
+    async def send(m):
+        sent.append(m)
+
+    guard = UserGuard(inner, "records-api", lambda: "enforce", TokenVerifier(ISSUER, AUDIENCE, DownJwks()))
+    await guard({"type": "http", "method": "GET", "path": "/patients",
+                 "headers": [(b"authorization", b"Bearer " + token().encode())]}, None, send)
+    assert sent[0]["status"] == 503 and b"Keycloak" in sent[1]["body"]
+    assert "Keycloak" in events(capsys)[-1]["reason"]

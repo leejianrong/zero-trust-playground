@@ -119,7 +119,7 @@ def from_keycloak_log(text: str):
         ev = event("user", "user_logout", "info", src=who, dst=client, reason=f"{who} signed out of {client}")
     elif kind == "LOGIN_ERROR":
         ev = event("user", "user_login_failed", "deny", src=who, dst=client, reason=f"{who} could not sign in to {client}: {error}")
-    elif kind == "CODE_TO_TOKEN_ERROR":
+    elif kind in ("CODE_TO_TOKEN_ERROR", "REFRESH_TOKEN_ERROR"):
         ev = event("user", "user_token_refused", "deny", src=who, dst=client, reason=f"{client} was refused a token for {who}: {error}")
     else:
         return None

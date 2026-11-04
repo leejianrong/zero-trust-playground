@@ -114,3 +114,44 @@ async def test_a_refusal_from_records_api_reaches_the_agent_with_its_reason(monk
         result = await c.call_tool("list_patients")
     assert result.is_error and "user layer" in result.content[0].text and "no token" in result.content[0].text
 
+
+
+def test_a_refresh_that_cannot_reach_keycloak_keeps_the_session_and_the_token_while_it_is_valid(monkeypatch):
+    c, seen = signed_in(monkeypatch, expires_in=10)
+
+    def down(request):
+        raise httpx.ConnectError("no route")
+
+    monkeypatch.setattr(login, "keycloak", lambda: httpx.Client(transport=httpx.MockTransport(down)))
+    assert c.get("/api/patients").status_code == 200  # no crash
+    assert seen == ["Bearer access-1"] and c.get("/auth/me").json()["signed_in"] is True
+
+
+def test_a_refresh_that_cannot_reach_keycloak_sends_no_token_once_the_old_one_has_expired(monkeypatch):
+    c, seen = signed_in(monkeypatch, expires_in=-5)
+
+    def down(request):
+        raise httpx.ConnectError("no route")
+
+    monkeypatch.setattr(login, "keycloak", lambda: httpx.Client(transport=httpx.MockTransport(down)))
+    c.get("/api/patients")
+    assert seen == [None]
+
+
+async def test_a_backend_failure_is_not_reported_as_a_user_layer_refusal():
+    from clinic import agent
+
+    class Session:
+        async def call_tool(self, name, args=None):
+            return type("R", (), {"is_error": True, "content": [type("T", (), {"text": "records-api answered 503. could not get a database credential"})()]})()
+
+    class Opened:
+        async def __aenter__(self):
+            return Session()
+
+        async def __aexit__(self, kind, exc, tb):
+            return False
+
+    agent.open_session = lambda *a, **k: Opened()
+    r = TestClient(agent.app).post("/tasks/summarise")
+    assert r.status_code == 502 and "503" in r.json()["detail"]

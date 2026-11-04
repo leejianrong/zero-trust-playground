@@ -43,9 +43,13 @@ def start_background(service: str):
     return modes, identity
 
 
+def bearer_value(header: str) -> str | None:
+    """The token in an `Authorization: Bearer <token>` header value, else None."""
+    return header[7:].strip() if header.lower().startswith("bearer ") else None
+
+
 def bearer(request: Request) -> str | None:
-    auth = request.headers.get("authorization", "")
-    return auth[7:].strip() if auth.lower().startswith("bearer ") else None
+    return bearer_value(request.headers.get("authorization", ""))
 
 
 def instrument(app: FastAPI, service: str, user_token=None) -> FastAPI:

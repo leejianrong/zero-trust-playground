@@ -46,5 +46,7 @@ async def run_summarise(request: Request):
     async with open_session("agent", trace) as session:
         done = await summarise(session, OBEY_INJECTED)
     if "refused" in done:  # raised out here: inside the session, the task group would wrap it into a 500
-        raise HTTPException(403, done["refused"])
+        # Only a 401 or 403 from records-api is a refusal. Anything else is a failure, and says so.
+        status = re.search(r"answered (\d{3})", done["refused"])
+        raise HTTPException(403 if status and status.group(1) in ("401", "403") else 502, done["refused"])
     return done

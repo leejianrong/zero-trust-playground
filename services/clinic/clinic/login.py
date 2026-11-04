@@ -21,6 +21,7 @@ CALLBACK = os.environ.get("LOGIN_CALLBACK_URL", "http://localhost:8081/auth/call
 CLIENT_ID = "web"
 COOKIE = "ztp_session"
 CLINIC_ROLES = ("clinician", "receptionist")
+MAX_PENDING = 100  # sign-ins started and never finished; the oldest are forgotten
 
 
 @dataclass
@@ -50,6 +51,8 @@ def _b64(raw: bytes) -> str:
 def sign_in():
     verifier, state = _b64(secrets.token_bytes(32)), _b64(secrets.token_bytes(16))
     PENDING[state] = verifier
+    while len(PENDING) > MAX_PENDING:
+        PENDING.pop(next(iter(PENDING)))
     query = urlencode({"client_id": CLIENT_ID, "response_type": "code", "scope": "openid", "redirect_uri": CALLBACK,
                        "state": state, "code_challenge": _b64(hashlib.sha256(verifier.encode()).digest()),
                        "code_challenge_method": "S256"})
@@ -57,16 +60,25 @@ def sign_in():
 
 
 @router.get("/callback")
-def callback(code: str, state: str):
+def callback(state: str, code: str | None = None, error: str | None = None):
     verifier = PENDING.pop(state, None)
     if verifier is None:
         raise HTTPException(400, "unknown or used sign-in state: start again from Sign in")
-    with keycloak() as kc:
-        r = kc.post(f"{INTERNAL}/protocol/openid-connect/token", data={
-            "grant_type": "authorization_code", "client_id": CLIENT_ID, "code": code,
-            "redirect_uri": CALLBACK, "code_verifier": verifier})
+    if error or not code:
+        raise HTTPException(400, f"sign-in was not completed: {error or 'no code returned'}")
+    try:
+        with keycloak() as kc:
+            r = kc.post(f"{INTERNAL}/protocol/openid-connect/token", data={
+                "grant_type": "authorization_code", "client_id": CLIENT_ID, "code": code,
+                "redirect_uri": CALLBACK, "code_verifier": verifier})
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"Keycloak could not be reached: {type(exc).__name__}") from exc
     if r.status_code != 200:
-        raise HTTPException(502, f"Keycloak refused the sign-in: {r.json().get('error_description', r.status_code)}")
+        try:
+            why = r.json().get("error_description", r.status_code)
+        except ValueError:
+            why = r.status_code
+        raise HTTPException(502, f"Keycloak refused the sign-in: {why}")
     tokens = r.json()
     # Read for display only. This service received the token straight from Keycloak over the backchannel.
     claims = jwt.decode(tokens["access_token"], options={"verify_signature": False})
@@ -93,8 +105,11 @@ def me(request: Request):
 def sign_out(request: Request):
     s = SESSIONS.pop(request.cookies.get(COOKIE, ""), None)
     if s:  # end Keycloak's own session too, or the next Sign in would skip the password
-        with keycloak() as kc:
-            kc.post(f"{INTERNAL}/protocol/openid-connect/logout", data={"client_id": CLIENT_ID, "refresh_token": s.refresh_token})
+        try:
+            with keycloak() as kc:
+                kc.post(f"{INTERNAL}/protocol/openid-connect/logout", data={"client_id": CLIENT_ID, "refresh_token": s.refresh_token})
+        except httpx.HTTPError:
+            pass  # our session is gone either way; Keycloak's own will time out
     response = Response(status_code=204)
     response.delete_cookie(COOKIE, path="/")
     return response
@@ -107,9 +122,12 @@ def token_for(request: Request) -> str | None:
     if s is None:
         return None
     if s.expires_at - time.time() < 30:
-        with keycloak() as kc:
-            r = kc.post(f"{INTERNAL}/protocol/openid-connect/token", data={
-                "grant_type": "refresh_token", "client_id": CLIENT_ID, "refresh_token": s.refresh_token})
+        try:
+            with keycloak() as kc:
+                r = kc.post(f"{INTERNAL}/protocol/openid-connect/token", data={
+                    "grant_type": "refresh_token", "client_id": CLIENT_ID, "refresh_token": s.refresh_token})
+        except httpx.HTTPError:  # Keycloak is away: keep the session, and use the token only while it is still valid
+            return s.access_token if s.expires_at > time.time() else None
         if r.status_code != 200:
             SESSIONS.pop(sid, None)
             return None

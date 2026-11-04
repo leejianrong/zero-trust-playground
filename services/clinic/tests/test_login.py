@@ -103,3 +103,40 @@ def test_sign_out_ends_the_keycloak_session_and_ours(monkeypatch):
     assert c.post("/auth/logout").status_code == 204
     assert kc.calls[-1][0].endswith("/logout") and kc.calls[-1][1]["refresh_token"] == ["r1"]
     assert c.get("/auth/me").json() == {"signed_in": False}
+
+
+def test_a_cancelled_sign_in_gets_a_plain_answer_and_the_state_is_forgotten(monkeypatch):
+    c = app(monkeypatch, Keycloak())
+    _, q = start(c)
+    r = c.get("/auth/callback", params={"error": "access_denied", "state": q["state"][0]})
+    assert r.status_code == 400 and "access_denied" in r.json()["detail"] and login.PENDING == {}
+
+
+def test_keycloak_answering_with_a_non_json_error_is_a_502_not_a_crash(monkeypatch):
+    kc = lambda request: httpx.Response(503, text="<html>down</html>")
+    c = app(monkeypatch, kc)
+    _, q = start(c)
+    r = c.get("/auth/callback", params={"code": "abc", "state": q["state"][0]})
+    assert r.status_code == 502 and "503" in r.json()["detail"]
+
+
+def test_pending_sign_ins_are_capped(monkeypatch):
+    c = app(monkeypatch, Keycloak())
+    for _ in range(login.MAX_PENDING + 20):
+        c.get("/auth/login")
+    assert len(login.PENDING) == login.MAX_PENDING
+
+
+def test_sign_out_works_when_keycloak_is_down(monkeypatch):
+    kc = Keycloak()
+    c = app(monkeypatch, kc)
+    _, q = start(c)
+    c.get("/auth/callback", params={"code": "abc", "state": q["state"][0]})
+
+    def down(request):
+        raise httpx.ConnectError("no route")
+
+    monkeypatch.setattr(login, "keycloak", lambda: httpx.Client(transport=httpx.MockTransport(down)))
+    r = c.post("/auth/logout")
+    assert r.status_code == 204 and "ztp_session" in r.headers["set-cookie"]
+    assert c.get("/auth/me").json() == {"signed_in": False}

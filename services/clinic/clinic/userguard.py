@@ -8,8 +8,9 @@ import uuid
 from dataclasses import dataclass
 
 import jwt
+from starlette.concurrency import run_in_threadpool
 
-from clinic.common import emit, trace_var
+from clinic.common import bearer_value, emit, trace_var
 
 PERMISSIONS = {"clinician": {"read", "write"}, "receptionist": {"read"}}
 READ_METHODS = {"GET", "HEAD", "OPTIONS"}
@@ -17,6 +18,10 @@ READ_METHODS = {"GET", "HEAD", "OPTIONS"}
 
 class TokenError(Exception):
     """The token cannot be trusted. The message is safe to show the caller."""
+
+
+class KeycloakUnavailable(TokenError):
+    """The token could not be checked because Keycloak's keys could not be fetched. That is not the user's fault."""
 
 
 @dataclass
@@ -41,6 +46,8 @@ class TokenVerifier:
             key = self.jwks.get_signing_key_from_jwt(token).key
             c = jwt.decode(token, key, algorithms=["RS256"], audience=self.audience, issuer=self.issuer,
                            options={"require": ["exp", "iss", "aud"]})
+        except jwt.PyJWKClientConnectionError as exc:
+            raise KeycloakUnavailable("Keycloak could not be reached to check the token") from exc
         except jwt.ExpiredSignatureError as exc:
             raise TokenError("the token has expired") from exc
         except jwt.InvalidIssuerError as exc:
@@ -75,11 +82,13 @@ class UserGuard:
 
     def decide(self, headers: dict, method: str) -> tuple[str | None, Claims | None, int]:
         """(refusal reason, claims, status to refuse with). A reason of None means allowed."""
-        auth = headers.get(b"authorization", b"").decode()
-        if not auth.lower().startswith("bearer "):
+        token = bearer_value(headers.get(b"authorization", b"").decode())
+        if token is None:
             return "no token: this request has no bearer token", None, 401
         try:
-            claims = self.verifier.verify(auth[7:].strip())
+            claims = self.verifier.verify(token)
+        except KeycloakUnavailable as exc:
+            return str(exc), None, 503
         except TokenError as exc:
             return str(exc), None, 401
         need = permission_for(method)
@@ -90,11 +99,19 @@ class UserGuard:
 
     async def __call__(self, scope, receive, send):
         mode = self.mode_of()
-        if scope["type"] != "http" or mode == "off" or scope["path"] == "/healthz":
+        if scope["type"] != "http" or scope["path"] == "/healthz":
             return await self.app(scope, receive, send)
         headers = dict(scope["headers"])
         method = scope["method"]
-        why, claims, status = self.decide(headers, method)
+        if mode == "off":
+            # Weak on purpose: `off` believes whoever the X-User header says. It is logged so the claim is visible.
+            if claimed := headers.get(b"x-user", b"").decode():
+                trace = trace_var.get() or headers.get(b"x-trace-id", b"").decode() or uuid.uuid4().hex[:12]
+                emit(event="user_authz", service=self.service, mode=mode, user=claimed, subject=None, roles=[], client=None,
+                     audience=[], method=method, route=scope["path"], verdict="allow",
+                     reason=f"{claimed} was taken from the X-User header, which anyone can set (user layer off)", trace=trace)
+            return await self.app(scope, receive, send)
+        why, claims, status = await run_in_threadpool(self.decide, headers, method)
         verdict = "allow" if why is None else "deny" if mode == "enforce" else "would_deny"
         trace = trace_var.get() or headers.get(b"x-trace-id", b"").decode() or uuid.uuid4().hex[:12]
         emit(event="user_authz", service=self.service, mode=mode, user=claims.user if claims else None, subject=claims.subject if claims else None,

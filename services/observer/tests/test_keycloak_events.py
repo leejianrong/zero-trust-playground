@@ -68,3 +68,9 @@ def test_an_audit_finding_is_information_and_a_missing_user_is_anonymous():
                        "reason": "no token", "trace": "t2"})
     ev = from_log_line(line)
     assert ev["verdict"] == "info" and ev["src"] == "anonymous" and ev["evidence"]["decision"] == "would_deny"
+
+
+def test_a_refused_refresh_is_a_deny_event_too():
+    line = PREFIX + 'type="REFRESH_TOKEN_ERROR", realmName="clinic", clientId="web", userId="7bae1e22", error="invalid_token"'
+    ev = from_keycloak_log(line)
+    assert (ev["kind"], ev["verdict"]) == ("user_token_refused", "deny") and "invalid_token" in ev["reason"]

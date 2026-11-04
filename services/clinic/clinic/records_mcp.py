@@ -8,7 +8,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.responses import JSONResponse
 
-from .common import client, emit, start_background, trace_var, user_token_var
+from .common import bearer_value, client, emit, start_background, trace_var, user_token_var
 from .guard import Guard
 
 RECORDS = os.environ.get("RECORDS_URL", "http://records-api.clinic.svc:8080")
@@ -21,8 +21,7 @@ def call(ctx: Context, tool: str, method: str, path: str, body: dict | None = No
     headers = ctx.headers or {}
     trace = headers.get("x-trace-id") or "none"
     trace_var.set(trace)
-    auth = headers.get("authorization", "")
-    user_token_var.set(auth[7:].strip() if auth.lower().startswith("bearer ") else None)
+    user_token_var.set(bearer_value(headers.get("authorization", "")))
     with client("records-mcp") as c:
         r = c.request(method, f"{RECORDS}{path}", json=body)
     emit(event="http", service="records-mcp", caller=headers.get("x-caller", "unknown"), method="TOOL",
