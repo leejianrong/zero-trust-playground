@@ -1,0 +1,10 @@
+# External Secrets Operator, trimmed for an 8 GB laptop: the controller only. The webhook and cert controller
+# only validate and convert objects, and the playground needs neither (ADR-0012).
+installCRDs: true
+crds:
+  conversion:
+    enabled: false
+webhook:
+  create: false
+certController:
+  create: false

@@ -43,4 +43,11 @@ for svc in $SERVICES; do
   vault write "auth/jwt/role/$svc" role_type=jwt user_claim=sub bound_audiences=vault \
     bound_subject="spiffe://$TRUST_DOMAIN/ns/clinic/sa/$svc" token_ttl=2m token_policies="$policy" >/dev/null
 done
+# External Secrets logs in with a Kubernetes service account token and may read one path, nothing else.
+vault auth list -format=json | grep -q '"kubernetes/"' || vault auth enable kubernetes >/dev/null
+vault write auth/kubernetes/config kubernetes_host=https://kubernetes.default.svc disable_iss_validation=true >/dev/null
+echo 'path "secret/data/clinic/billing-api-key" { capabilities = ["read"] }' | vault policy write eso - >/dev/null
+vault write auth/kubernetes/role/eso bound_service_account_names=eso-reader bound_service_account_namespaces=clinic \
+  policies=eso ttl=10m >/dev/null
+vault kv get secret/clinic/billing-api-key >/dev/null 2>&1 || vault kv put secret/clinic/billing-api-key value=placeholder-api-key >/dev/null
 echo "vault configured: jwt auth trusts $ISSUER, roles: $SERVICES, database credentials for records-api"
