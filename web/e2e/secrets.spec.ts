@@ -1,10 +1,16 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type APIRequestContext } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 
 // V5 Secrets view: credentials appear within 5 seconds of being issued, count down, and a refused request is shown.
 const OBSERVER = "http://localhost:8765";
 const WEB = "http://localhost:8081";
 const KUBECTL = ["--context", "k3d-ztp"];
+
+// A restart briefly drops connections through the port-forward, which throws. For "wait until it answers" that is
+// just "not yet".
+const answers = (request: APIRequestContext) => async () => {
+  try { return (await request.get(`${WEB}/api/patients`)).status(); } catch { return 0; }
+};
 
 const BILLING_ASKS = `
 import json, urllib.request, urllib.error
@@ -29,10 +35,12 @@ test("a credential shows up within 5 seconds of being issued, and counts down", 
   // A restart empties records-api's credential cache, so the next request has to ask Vault for a new one.
   execFileSync("kubectl", [...KUBECTL, "-n", "clinic", "rollout", "restart", "deploy/records-api"]);
   execFileSync("kubectl", [...KUBECTL, "-n", "clinic", "rollout", "status", "deploy/records-api", "--timeout=90s"]);
+  // The rollout finishes when the container starts, not when it listens, so wait until the clinic answers.
+  await expect.poll(answers(request), { timeout: 60_000 }).toBe(200);
   expect((await request.put(`${OBSERVER}/layers/secrets`, { data: { mode: "audit" }, timeout: 60_000 })).ok()).toBe(true);
   await page.goto("/#secrets");
   await page.waitForTimeout(4_000); // services poll the layer ConfigMap every 2 seconds
-  expect((await request.get(`${WEB}/api/patients`)).status()).toBe(200);
+  await expect.poll(answers(request), { timeout: 15_000 }).toBe(200); // the request that makes records-api ask Vault
 
   // The newest row is the first one. Close to the full 120 seconds left means it was issued moments ago, not backfilled.
   const left = page.getByRole("cell", { name: /seconds left/ }).first();

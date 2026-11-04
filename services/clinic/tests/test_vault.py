@@ -71,3 +71,24 @@ def test_when_vault_is_down_the_caller_gets_a_503_with_the_reason(monkeypatch):
     with pytest.raises(HTTPException) as e:
         records_api.connect()
     assert e.value.status_code == 503 and "Vault did not answer" in e.value.detail
+
+
+def test_a_new_pod_may_not_have_its_identity_yet_so_the_fetch_is_retried():
+    calls = []
+
+    def fetch():
+        calls.append(1)
+        if len(calls) < 3:
+            raise RuntimeError("no identity issued")
+        return "jwt"
+
+    assert vault.with_retries(fetch, attempts=5, delay=0, sleep=lambda s: None) == "jwt"
+    assert len(calls) == 3
+
+
+def test_the_retry_gives_up_and_says_why():
+    def never():
+        raise RuntimeError("no identity issued")
+
+    with pytest.raises(RuntimeError, match="no identity issued"):
+        vault.with_retries(never, attempts=3, delay=0, sleep=lambda s: None)

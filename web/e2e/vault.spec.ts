@@ -105,6 +105,11 @@ test("an issued user stops working after its TTL", async () => {
 // password revoked by the controller.
 const OBSERVER = "http://localhost:8765";
 const WEB = "http://localhost:8081";
+// A restart briefly drops connections through the port-forward, which throws. For "wait until it answers" that is
+// just "not yet".
+const answers = (request: APIRequestContext) => async () => {
+  try { return (await request.get(`${WEB}/api/patients`)).status(); } catch { return 0; }
+};
 const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
 const setSecrets = async (request: APIRequestContext, mode: string) => {
   const r = await request.put(`${OBSERVER}/layers/secrets`, { data: { mode }, timeout: 60_000 });
@@ -120,6 +125,8 @@ test("records-api serves across two rotations with the static password revoked",
   // A restart empties the credential cache, so the first credential and both rotations land inside the window.
   execFileSync("kubectl", [...KUBECTL, "-n", "clinic", "rollout", "restart", "deploy/records-api"]);
   execFileSync("kubectl", [...KUBECTL, "-n", "clinic", "rollout", "status", "deploy/records-api", "--timeout=90s"]);
+  // The rollout finishes when the container starts, not when it listens, so wait until the clinic answers.
+  await expect.poll(answers(request), { timeout: 60_000 }).toBe(200);
   const before = issuedUsers();
   await setSecrets(request, "enforce");
   try {

@@ -15,14 +15,29 @@ class VaultError(RuntimeError):
     pass
 
 
+def with_retries(fn, attempts: int = 10, delay: float = 1.0, sleep=time.sleep):
+    """Call `fn`, retrying while it fails. A pod that has just started can ask for its identity before SPIRE has
+    issued one, and that lasts a second or two on a slow machine."""
+    for attempt in range(attempts):
+        try:
+            return fn()
+        except Exception:  # the identity socket raises its own errors
+            if attempt == attempts - 1:
+                raise
+            sleep(delay)
+
+
 def fetch_credential(role: str = "records-api") -> tuple[str, str, float]:
     """Log in with this workload's JWT-SVID and read a database user: (username, password, seconds it lasts)."""
     from spiffe import WorkloadApiClient
 
     addr = os.environ.get("VAULT_ADDR", "http://vault.vault.svc:8200")
     try:
-        with WorkloadApiClient(socket_path=os.environ["SPIFFE_ENDPOINT_SOCKET"]) as client:
-            jwt = client.fetch_jwt_svid(audience={"vault"}).token
+        def svid() -> str:
+            with WorkloadApiClient(socket_path=os.environ["SPIFFE_ENDPOINT_SOCKET"]) as client:
+                return client.fetch_jwt_svid(audience={"vault"}).token
+
+        jwt = with_retries(svid)
         login = httpx.put(f"{addr}/v1/auth/jwt/login", json={"role": role, "jwt": jwt}, timeout=3)
         login.raise_for_status()
         read = httpx.get(f"{addr}/v1/database/creds/{role}", timeout=3,
