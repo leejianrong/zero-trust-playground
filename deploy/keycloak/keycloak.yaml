@@ -1,0 +1,37 @@
+# LABELLED THROWAWAY: Keycloak in dev mode (ADR-0013). Embedded database, fixed admin password, localhost only.
+# A restarted pod keeps only the master realm, so `make keycloak` creates the clinic realm again. The image comes from versions.env.
+apiVersion: v1
+kind: Namespace
+metadata: {name: keycloak}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: keycloak, namespace: keycloak}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: keycloak}}
+  template:
+    metadata: {labels: {app: keycloak}}
+    spec:
+      containers:
+      - name: keycloak
+        image: KEYCLOAK_IMAGE
+        args: ["start-dev", "--http-port=8080"]
+        env:
+        - {name: KC_BOOTSTRAP_ADMIN_USERNAME, value: admin}
+        - {name: KC_BOOTSTRAP_ADMIN_PASSWORD, value: playground-dev-admin}
+        # Every token names this issuer, whether it was issued to the browser or to a pod. Pods fetch keys by service name.
+        - {name: KC_HOSTNAME, value: "http://localhost:8180"}
+        - {name: KC_HOSTNAME_BACKCHANNEL_DYNAMIC, value: "true"}
+        # The observer reads sign-in events from the log, and successes are hidden by default.
+        - {name: KC_SPI_EVENTS_LISTENER__JBOSS_LOGGING__SUCCESS_LEVEL, value: info}
+        - {name: JAVA_OPTS_KC_HEAP, value: "-Xms128m -Xmx384m"}
+        ports: [{containerPort: 8080}]
+        readinessProbe: {httpGet: {path: /realms/master, port: 8080}, periodSeconds: 5}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: keycloak, namespace: keycloak}
+spec:
+  selector: {app: keycloak}
+  ports: [{port: 8080}]

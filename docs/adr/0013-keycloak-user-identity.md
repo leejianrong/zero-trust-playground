@@ -1,6 +1,6 @@
 # ADR-0013: Keycloak signs users in and records-api validates their tokens
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-04
 - Deciders: user, agent
 
@@ -24,7 +24,7 @@ V6 adds the user layer. A person signs in, and the clinic decides what they may 
 
 | Question | Result |
 |---|---|
-| Memory | The Keycloak container used about 540 MB (cgroup `memory.current`) after the realm, two logins and token calls, with the heap capped at 384 MB. Host `MemAvailable` fell from about 3.5 GB to about 2.1 GB when it started, which includes page cache. |
+| Memory | The Keycloak container used 540 MB in the spike and 705 MB after a fresh start with the realm created (cgroup `memory.current`), with the heap capped at 384 MB. Host `MemAvailable` fell from about 3.5 GB to about 2.1 GB when it started, which includes page cache. |
 | Issuer from a pod vs from the browser | Both `http://localhost:8180/realms/clinic`. A token requested through the service name still carries the localhost issuer. |
 | Token validation in `records-api` | A token for `bob` validated: signature, issuer and audience. A wrong audience raised `InvalidAudienceError`, a wrong issuer `InvalidIssuerError`. |
 | Authorization code with PKCE | The login form, code and token exchange worked through a port-forward on 8180. A wrong `code_verifier` returned `invalid_grant: PKCE verification failed`. |

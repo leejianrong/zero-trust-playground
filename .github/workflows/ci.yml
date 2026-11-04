@@ -55,6 +55,7 @@ jobs:
       - run: make headlamp
       - run: make vault
       - run: make eso
+      - run: make keycloak
       - run: uv sync --frozen
         working-directory: services/observer
       - run: npm ci
