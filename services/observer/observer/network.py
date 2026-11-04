@@ -73,13 +73,16 @@ def remove(run=kubectl) -> None:
         run("-n", ns, "delete", "networkpolicy", "-l", "=".join(LABEL), "--ignore-not-found")
 
 
-def applied(run=kubectl) -> bool:
-    """True when every policy in the set exists."""
+def state(run=kubectl) -> str:
+    """`enforce` when every policy in the set exists, `off` when no default-deny is left, else `partial`:
+    something is missing but the rest still drops traffic."""
     have = set()
     for ns in NAMESPACES:
         items = json.loads(run("-n", ns, "get", "networkpolicy", "-l", "=".join(LABEL), "-o", "json"))["items"]
         have |= {(ns, i["metadata"]["name"]) for i in items}
-    return have == {(p["metadata"]["namespace"], p["metadata"]["name"]) for p in policies()}
+    if have == {(p["metadata"]["namespace"], p["metadata"]["name"]) for p in policies()}:
+        return "enforce"
+    return "partial" if any(name == "default-deny" for _, name in have) else "off"
 
 
 def listing(run=kubectl) -> dict:

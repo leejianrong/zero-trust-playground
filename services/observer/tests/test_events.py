@@ -121,7 +121,7 @@ async def no_wait(_):
 
 
 class NoNet:
-    applied = staticmethod(lambda: False)
+    state = staticmethod(lambda: "off")
     protects = staticmethod(lambda app: False)
     listing = staticmethod(dict)
 
@@ -273,7 +273,7 @@ def test_a_successful_attack_has_nothing_to_stop_it():
 
 
 class NetUp(NoNet):
-    applied = staticmethod(lambda: True)
+    state = staticmethod(lambda: "enforce")
     protects = staticmethod(lambda app: app in {"postgres", "records-api"})
 
 
@@ -367,16 +367,16 @@ def test_the_watch_baselines_silently_then_reports_what_changed_since():
 class FakeNet(NoNet):
     """A cluster in a dict: apply and remove change it, listing reads it."""
     def __init__(self):
-        self.state = {}
+        self.specs = {}
 
     def apply(self):
-        self.state = specs(a=1, b=1)
+        self.specs = specs(a=1, b=1)
 
     def remove(self):
-        self.state = {}
+        self.specs = {}
 
     def listing(self):
-        return dict(self.state)
+        return dict(self.specs)
 
 
 def put_network(client, mode):
@@ -412,3 +412,11 @@ def test_the_catalogue_says_which_layer_combinations_stop_each_attack():
         assert expected_for(name, identity="enforce", mtls="enforce") == "succeeds", name
         assert expected_for(name, network="enforce") == "blocked", name
     assert expected_for("agent-prompt-injection", identity="enforce", mtls="enforce", network="enforce") == "succeeds"
+
+
+class NetPartial(NetUp):
+    state = staticmethod(lambda: "partial")
+
+
+def test_a_connect_failure_with_a_partial_network_is_attributed_to_it_as_inferred():
+    assert run_with_net("read-postgres", "connect", net=NetPartial)["stopped_by"] == "network (inferred)"

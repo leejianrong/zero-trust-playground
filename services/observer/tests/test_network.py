@@ -88,17 +88,25 @@ def test_apply_twice_changes_nothing_and_remove_leaves_nothing():
     network.apply(kube)
     once = dict(kube.have)
     network.apply(kube)
-    assert kube.have == once and network.applied(kube)
+    assert kube.have == once and network.state(kube) == "enforce"
     network.remove(kube)
     network.remove(kube)
-    assert kube.have == {} and not network.applied(kube)
+    assert kube.have == {} and network.state(kube) == "off"
 
 
-def test_a_partial_set_is_not_applied():
+def test_a_set_with_a_hole_is_partial_because_the_rest_still_denies():
     kube = Kube()
     network.apply(kube)
     del kube.have[("clinic", "allow-billing")]
-    assert not network.applied(kube)
+    assert network.state(kube) == "partial"
+
+
+def test_with_no_default_deny_left_the_set_is_off():
+    kube = Kube()
+    network.apply(kube)
+    for ns in network.NAMESPACES:
+        del kube.have[(ns, "default-deny")]
+    assert network.state(kube) == "off"
 
 
 def test_the_poller_survives_a_missing_kubectl():

@@ -25,7 +25,7 @@ export const EDGES: Edge[] = [
   { from: "records-api", to: "postgres", guarded: false },
 ];
 
-export type Status = "off" | "audit" | "enforce" | "planned";
+export type Status = "off" | "audit" | "enforce" | "partial" | "planned";
 
 export type Layer = {
   id: string;
@@ -46,7 +46,7 @@ export const PATTERN_LAYERS: Layer[] = [
 ];
 
 export const status = (layer: Layer, modes: Modes): Status =>
-  layer.built ? ((modes[layer.id] as Mode | undefined) ?? "off") : "planned";
+  layer.built ? ((modes[layer.id] as Status | undefined) ?? "off") : "planned";
 
 /** How an mTLS-guarded line is drawn. Shape differs as well as colour, so colour never carries it alone. */
 export function lineFor(mtls: Mode | undefined): { dash: string; color: string; width: number; label: string } {

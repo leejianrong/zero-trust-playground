@@ -31,7 +31,7 @@
     return () => clearInterval(t);
   });
 
-  const LABEL: Record<string, string> = { off: "Off", audit: "Audit", enforce: "Enforce", planned: "Not built yet" };
+  const LABEL: Record<string, string> = { off: "Off", audit: "Audit", enforce: "Enforce", partial: "Partial", planned: "Not built yet" };
 </script>
 
 <section>
@@ -100,6 +100,7 @@
   .comp b { color: var(--ink); font-weight: 600; }
   .chip { align-self: flex-start; font-size: 0.9rem; font-weight: 600; padding: 0.2rem 0.8rem; border-radius: 99px; background: var(--surface-sunk); color: var(--ink-soft); white-space: nowrap; }
   .chip.audit { background: var(--expiry-fill); color: #1a1000; }
+  .chip.partial { background: var(--expiry-fill); color: #1a1000; }
   .chip.enforce { background: var(--credential); color: #fff; }
   :global(:root[data-theme="dark"]) .chip.enforce { color: #07121c; }
   .error { margin: 0; color: var(--deny); background: var(--deny-wash); padding: 0.5rem 0.9rem; border-radius: 10px; }

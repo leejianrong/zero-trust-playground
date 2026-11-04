@@ -145,7 +145,8 @@ def failure_phase(exc: BaseException) -> str:
         exc = exc.__cause__ or exc.__context__
     if any(isinstance(e, ssl.SSLError | httpx.RemoteProtocolError | httpx.ReadError) for e in chain):
         return "handshake"
-    if any(isinstance(e, ConnectionRefusedError | httpx.ConnectError) or "Connection refused" in str(e) for e in chain):
+    if any(isinstance(e, ConnectionRefusedError | httpx.ConnectError | httpx.ConnectTimeout)
+           or "Connection refused" in str(e) or "connection timeout expired" in str(e) for e in chain):
         return "connect"
     return "request"
 

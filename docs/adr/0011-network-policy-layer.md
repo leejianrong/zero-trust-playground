@@ -27,7 +27,9 @@ V4 adds the network layer. We assumed k3s enforces NetworkPolicy and that a defa
 
 **Network `audit` stays unavailable.** The policy engine gave us no log of dropped connections that we could find, and we did not look at node-level counters. The controller refuses `audit` for this layer and says why (Q15).
 
-**A drop is attributed by inference.** The attack runner records which phase failed, and the observer names the network layer when a connect-phase failure happens while the policy set is applied. The result says `network (inferred)`.
+**A drop is attributed by inference.** The attack runner records which phase failed, and the observer names the network layer when a connect-phase failure happens while the policy set is applied, in full or in part. A connect timeout counts as a connect-phase failure, because a drop can time out as well as refuse; it also means a closed port on a Service that does not define it is misattributed, and the docs say so.
+
+**`GET /layers` reports `partial`.** When some policies are missing but a default-deny is left, the network layer reads `partial`, not `off`. The attack matrix expects the same results as for `enforce`, which is right unless the missing policy is the allow for `web`. `PUT` still takes only `off` and `enforce`. The result says `network (inferred)`.
 
 ## What we measured
 

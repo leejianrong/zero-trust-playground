@@ -24,11 +24,11 @@ class FakeKube:
 class FakeNet:
     """Stands in for observer.network: whether the policy set exists."""
 
-    def __init__(self, on=False, fail=False):
-        self.on, self.fail = on, fail
+    def __init__(self, on=False, fail=False, partial=False):
+        self.on, self.fail, self.partial = on, fail, partial
 
-    def applied(self):
-        return self.on
+    def state(self):
+        return "partial" if self.partial else "enforce" if self.on else "off"
 
     def listing(self):
         return {}
@@ -125,3 +125,15 @@ def test_a_kubectl_failure_is_a_502_not_a_crash():
 def test_network_needs_no_identity():
     client, _, _ = make()
     assert client.put("/layers/network", json={"mode": "enforce"}).status_code == 200
+
+
+def test_a_set_with_a_hole_reads_as_partial():
+    client, _, _ = make(net=FakeNet(partial=True))
+    assert client.get("/layers").json()["network"] == "partial"
+
+
+def test_a_partial_network_is_expected_to_block_like_an_enforced_one():
+    from observer.layers import expected
+    attack = {"expected": {"default": "succeeds", "rules": [{"when": {"network": "enforce"}, "outcome": "blocked"}]}}
+    assert expected(attack, {"network": "partial"}) == "blocked"
+    assert expected(attack, {"network": "off"}) == "succeeds"

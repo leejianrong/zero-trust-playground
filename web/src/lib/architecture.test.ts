@@ -17,6 +17,7 @@ test("a built layer follows the live mode and a planned layer stays planned", ()
   expect(status(identity, { identity: "audit", mtls: "off" })).toBe("audit");
   expect(status(identity, {})).toBe("off");
   expect(status(network, { network: "enforce" })).toBe("enforce");
+  expect(status(network, { network: "partial" })).toBe("partial");
   expect(status(secrets, { secrets: "enforce" })).toBe("planned");
 });
 

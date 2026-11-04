@@ -51,7 +51,7 @@ Returns `{"ok": true}`.
 
 ## `GET /layers`
 
-Returns the current mode of each layer, for example `{"identity": "off", "mtls": "off", "network": "off"}`. The `identity` and `mtls` modes live in the `layer-modes` ConfigMap in the `clinic` namespace, and the services poll it every 2 seconds. The `network` mode is `enforce` when the whole set of network policies exists in the cluster, and `off` otherwise, so a set with one policy missing reads as `off` even though the rest still deny traffic. The network policy events are described in [Network policies](network-policies.md).
+Returns the current mode of each layer, for example `{"identity": "off", "mtls": "off", "network": "off"}`. The `identity` and `mtls` modes live in the `layer-modes` ConfigMap in the `clinic` namespace, and the services poll it every 2 seconds. The `network` mode is `enforce` when the whole set of network policies exists in the cluster, `partial` when some are missing but a default-deny is still there (the rest still deny traffic), and `off` when no default-deny is left. `PUT /layers/network` takes only `off` and `enforce`; `partial` is something you can only observe. The network policy events are described in [Network policies](network-policies.md).
 
 ## `PUT /layers/{layer}`
 

@@ -22,6 +22,8 @@ def refusal(current: dict, layer: str, mode: str) -> str | None:
 
 def expected(attack: dict, modes: dict) -> str:
     """What this attack should do under the current modes: the first rule whose conditions all hold, else the default."""
+    if modes.get("network") == "partial":
+        modes = {**modes, "network": "enforce"}  # a hole in the set still denies, so expect the same blocks
     for rule in attack["expected"].get("rules", []):
         if all(modes.get(layer) == mode for layer, mode in rule["when"].items()):
             return rule["outcome"]

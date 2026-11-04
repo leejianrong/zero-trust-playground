@@ -62,7 +62,7 @@ stopped by: network (inferred)
 
 Two things to read here. The password was correct, and it did not matter: the connection was refused before Postgres could look at it. And `stopped by` says `(inferred)`.
 
-A dropped connection leaves no log line, so no layer can report that it refused you. The observer works it out instead. The attack runner records which phase failed (`connect`, `handshake` or `request`), and the observer names the network layer when the connection never opened, the policies are applied, and the target is one they cover. That is a good guess and not proof. A service with no running pods would refuse a connection too, and be reported the same way.
+A dropped connection leaves no log line, so no layer can report that it refused you. The observer works it out instead. The attack runner records which phase failed (`connect`, `handshake` or `request`), and the observer names the network layer when the connection never opened or timed out while connecting, the policies are applied (fully or partly), and the target is one they cover. That is a good guess and not proof. A service with no running pods would refuse a connection too, and a closed port on a service that does not define it times out the same way a drop can. Both would be reported the same way.
 
 This is also why the network layer has no **Audit** mode. With mTLS you can log what would have been refused. Here there is nothing to read, so the controller refuses `audit` and says why.
 

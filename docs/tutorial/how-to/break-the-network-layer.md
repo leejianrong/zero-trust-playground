@@ -35,10 +35,10 @@ Now look at what the controller thinks:
 
 ```console
 $ curl -s localhost:8765/layers
-{"identity":"off","mtls":"off","network":"off"}
+{"identity":"off","mtls":"off","network":"partial"}
 ```
 
-It says `off`. The controller counts the network layer as enforced only when the whole set exists, so a set with a hole in it reads as off, even though most of it is still denying traffic. If you trust the switch alone, you will get this wrong. The deletion is also an event (see the next section).
+It says `partial`. The controller reads `enforce` only when the whole set exists. With a policy missing but a default-deny still in place, it says `partial`: some paths are open and the rest still deny. The attack matrix treats `partial` like `enforce`, so an attack the set still stops is shown as blocked, not as a success. Only `off` means no default-deny is left. The deletion is also an event (see the next section).
 
 To recover, enforce again. The controller reapplies the full set, which puts back what is missing and leaves the rest alone:
 

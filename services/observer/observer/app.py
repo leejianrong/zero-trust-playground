@@ -79,7 +79,7 @@ def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl
         A refused connection never reaches a workload, so there is nothing to wait for: if the network layer is
         enforced and covers the target, name it, as an inference (ADR-0011)."""
         if phase == "connect":
-            return "network (inferred)" if modes["network"] == "enforce" and net.protects(target) else None
+            return "network (inferred)" if modes["network"] != "off" and net.protects(target) else None
         for _ in range(6 if trace else 0):
             denies = [e for e in store.since(trace=trace) if e["verdict"] == "deny" and e["kind"] != "attack_result"]
             if denies:
@@ -136,8 +136,7 @@ def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl
         out = await kube("-n", ns, "get", "configmap", name, "-o", "json")
         if not out.strip():
             raise HTTPException(502, "layer-modes ConfigMap not found; is `make clinic` deployed?")
-        applied = await cluster(net.applied)
-        return {**layers.parse(out), "network": "enforce" if applied else "off"}
+        return {**layers.parse(out), "network": await cluster(net.state)}
 
     @app.get("/layers")
     async def get_layers():

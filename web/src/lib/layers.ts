@@ -1,5 +1,7 @@
 export type Mode = "off" | "audit" | "enforce";
-export type Modes = Record<string, Mode>;
+// The network layer can also read `partial`: part of the policy set is gone but the rest still drops traffic.
+export type Reported = Mode | "partial";
+export type Modes = Record<string, Reported>;
 
 export const MODES: { id: Mode; label: string }[] = [
   { id: "off", label: "Off" },
@@ -7,7 +9,7 @@ export const MODES: { id: Mode; label: string }[] = [
   { id: "enforce", label: "Enforce" },
 ];
 
-export type LayerInfo = { id: string; name: string; what: string; modes: Record<Mode, string>; noAudit?: string };
+export type LayerInfo = { id: string; name: string; what: string; modes: Record<Mode, string>; noAudit?: string; partial?: string };
 
 // What each mode does in this playground, as built. Keep in step with ADR-0010.
 export const LAYERS: LayerInfo[] = [
@@ -40,6 +42,7 @@ export const LAYERS: LayerInfo[] = [
       audit: "Not offered. A dropped connection leaves no log we can read.",
       enforce: "Default-deny on the clinic and agents namespaces, plus one allow for each real call. Only records-api reaches Postgres.",
     },
+    partial: "Part of the policy set is missing, so some paths are open. The rest of the set still drops traffic. Turn Enforce on to restore the whole set.",
     noAudit: "Not available: a dropped connection leaves no log we can read, so there is nothing to show in audit.",
   },
 ];
