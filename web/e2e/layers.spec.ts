@@ -5,7 +5,7 @@ const WEB = "http://localhost:8081";
 
 const put = (page: Page, layer: string, mode: string) =>
   page.request.put(`${OBSERVER}/layers/${layer}`, { data: { mode } });
-const reset = async (page: Page) => { await put(page, "secrets", "off"); await put(page, "network", "off"); await put(page, "mtls", "off"); await put(page, "identity", "off"); };
+const reset = async (page: Page) => { await put(page, "user", "off"); await put(page, "secrets", "off"); await put(page, "network", "off"); await put(page, "mtls", "off"); await put(page, "identity", "off"); };
 const mode = (page: Page, layer: string) => page.getByRole("radiogroup", { name: new RegExp(layer) }).getByRole("radio", { checked: true });
 
 test.beforeEach(async ({ page }) => reset(page));
@@ -33,7 +33,7 @@ test("mTLS enforce with identity off is refused, with the reason, and nothing ch
   await page.getByRole("radiogroup", { name: /Mutual TLS/ }).getByRole("radio", { name: "Enforce" }).click();
   await expect(page.getByRole("alert")).toContainText("mTLS needs workload identity");
   await expect(mode(page, "Mutual TLS")).toHaveText("Off");
-  expect(await (await page.request.get(`${OBSERVER}/layers`)).json()).toEqual({ identity: "off", mtls: "off", secrets: "off", network: "off" });
+  expect(await (await page.request.get(`${OBSERVER}/layers`)).json()).toEqual({ identity: "off", mtls: "off", secrets: "off", user: "off", network: "off" });
 });
 
 test("network enforce stops the attacker reaching Postgres, and audit is not offered", async ({ page }) => {
@@ -67,4 +67,14 @@ test("secrets enforce revokes the static password and the clinic still works, an
   await group.getByRole("radio", { name: "Off" }).click();
   await expect(mode(page, "Short-lived secrets")).toHaveText("Off", { timeout: 30_000 });
   await expect.poll(async () => (await page.request.get(`${WEB}/api/patients`)).status(), { timeout: 10_000 }).toBe(200);
+});
+
+test("the user layer changes from the page and the services pick it up within 5 seconds", async ({ page }) => {
+  await page.goto("/#layers");
+  const group = page.getByRole("radiogroup", { name: /User identity/ });
+  await expect(mode(page, "User identity")).toHaveText("Off");
+  await group.getByRole("radio", { name: "Audit" }).click();
+  await expect(mode(page, "User identity")).toHaveText("Audit");
+  await expect.poll(async () => (await (await page.request.get(`${WEB}/healthz`)).json()).modes, { timeout: 5_000 })
+    .toMatchObject({ user: "audit" });
 });

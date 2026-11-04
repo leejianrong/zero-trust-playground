@@ -20,7 +20,8 @@ test("a built layer follows the live mode and a planned layer stays planned", ()
   expect(status(network, { network: "enforce" })).toBe("enforce");
   expect(status(network, { network: "partial" })).toBe("partial");
   expect(status(secrets, { secrets: "audit" })).toBe("audit");
-  expect(status(user, { user: "enforce" })).toBe("planned");
+  expect(status(user, { user: "enforce" })).toBe("enforce");
+  expect(status(PATTERN_LAYERS.find((l) => l.id === "agent")!, { agent: "enforce" })).toBe("planned");
 });
 
 test("every layer names the pattern component it maps to", () => {

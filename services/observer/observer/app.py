@@ -8,7 +8,7 @@ from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from . import adapters, layers, links, network, secrets
+from . import adapters, layers, links, network, secrets, users
 from .normalize import event
 from .store import Store
 
@@ -29,7 +29,7 @@ class ModeChange(BaseModel):
 
 
 def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl_exec, catalog=CATALOG,
-               probe_url=links.probe, kube=kubectl, wait=asyncio.sleep, net=network, sec=secrets):
+               probe_url=links.probe, kube=kubectl, wait=asyncio.sleep, net=network, sec=secrets, usr=users):
     store = store or Store("observer.db")
     attacks = {a["name"]: a for a in json.loads(Path(catalog).read_text())}
 
@@ -161,6 +161,8 @@ def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl
         else:
             if layer == "secrets" and body.mode != "off" and not await cluster(sec.vault_ready):
                 raise HTTPException(409, "Vault is not installed: run `make vault` first")
+            if layer == "user" and body.mode != "off" and not await cluster(usr.keycloak_ready):
+                raise HTTPException(409, "Keycloak is not installed: run `make keycloak` first")
             ns, name = layers.CONFIGMAP
             if layer == "secrets" and before[layer] == "enforce" and body.mode != "enforce":
                 await cluster(lambda: sec.set_static("restore"))  # the static password must work again before services return to it
