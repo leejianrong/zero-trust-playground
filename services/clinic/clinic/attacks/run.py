@@ -20,7 +20,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID
 
 from ..common import secure
-from ..mcp_client import data_of, open_session
+from ..mcp_client import data_of, open_session, text_of
 from ..mtls import client_context
 
 RECORDS = os.environ.get("RECORDS_URL", "http://records-api.clinic.svc:8080")
@@ -55,10 +55,40 @@ def cross_namespace_billing(http):
 def mcp_no_identity(http):
     async def go():
         async with open_session("attacker", http.headers.get("x-trace-id")) as session:
-            return data_of(await session.call_tool("list_patients"))
+            result = await session.call_tool("list_patients")
+            if result.is_error:  # records-api refused and the tool passed the reason on
+                raise RuntimeError(text_of(result))
+            return data_of(result)
 
     records = asyncio.run(go())
     return {"patients_listed": len(records)}
+
+
+KEYCLOAK = os.environ.get("KEYCLOAK_INTERNAL_URL", "http://keycloak.keycloak.svc:8080/realms/clinic")
+
+
+class SetupError(Exception):
+    """The attack could not even be set up, which says nothing about whether a layer stops it."""
+
+
+def forged_user_header(http):
+    """Claim to be a clinician with a header, the way the `off` mode of the user layer believes."""
+    r = http.get(f"{RECORDS}/patients", headers={**HEADERS, "x-user": "aisha"})
+    r.raise_for_status()
+    return {"claimed": "aisha", "status": r.status_code, "items": len(r.json())}
+
+
+def wrong_audience_token(http):
+    """Present a genuine token for a real user that was issued for the billing API, not records-api."""
+    try:
+        t = http.post(f"{KEYCLOAK}/protocol/openid-connect/token", data={
+            "grant_type": "password", "client_id": "attacker-cli", "username": "aisha", "password": "playground-aisha"})
+        t.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise SetupError(f"could not get a token from Keycloak: run `make keycloak` ({type(exc).__name__})") from exc
+    r = http.get(f"{RECORDS}/patients", headers={**HEADERS, "authorization": f"Bearer {t.json()['access_token']}"})
+    r.raise_for_status()
+    return {"status": r.status_code, "items": len(r.json())}
 
 
 CLAIMED = "spiffe://playground.local/ns/clinic/sa/web"
@@ -130,6 +160,8 @@ ATTACKS = {
     "cross-namespace-billing": cross_namespace_billing,
     "mcp-no-identity": mcp_no_identity,
     "forged-identity": forged_identity,
+    "forged-user-header": forged_user_header,
+    "wrong-audience-token": wrong_audience_token,
     "agent-prompt-injection": agent_prompt_injection,
 }
 

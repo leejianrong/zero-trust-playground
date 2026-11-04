@@ -103,7 +103,7 @@ def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl
         try:
             result = json.loads(out.strip().splitlines()[-1])
         except (IndexError, json.JSONDecodeError):
-            raise HTTPException(502, "attacker pod gave no result; is `make clinic` deployed?") from None
+            raise HTTPException(502, "attacker pod gave no result; is `make clinic` deployed, and `make keycloak` for the user attacks?") from None
         modes = await current_modes()
         outcome, trace = result["outcome"], result.get("trace")
         expected = layers.expected(attack, modes)

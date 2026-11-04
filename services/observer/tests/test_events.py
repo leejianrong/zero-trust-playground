@@ -414,6 +414,18 @@ def test_the_catalogue_says_which_layer_combinations_stop_each_attack():
     assert expected_for("agent-prompt-injection", identity="enforce", mtls="enforce", network="enforce") == "succeeds"
 
 
+def test_the_catalogue_says_which_attacks_the_user_layer_stops():
+    stopped = ["no-identity-records", "mcp-no-identity", "forged-identity", "forged-user-header", "wrong-audience-token", "agent-prompt-injection"]
+    for name in stopped:  # everything that reaches records-api without a good user token
+        assert expected_for(name, user="off") == "succeeds", name
+        assert expected_for(name, user="audit") == "succeeds", name
+        assert expected_for(name, user="enforce") == "blocked", name
+    for name in ("cross-namespace-billing", "read-postgres", "postgres-from-billing"):  # these never ask records-api about a user
+        assert expected_for(name, user="enforce") == "succeeds", name
+    assert expected_for("forged-user-header", network="enforce") == "blocked"
+    assert expected_for("wrong-audience-token", identity="enforce", mtls="enforce") == "blocked"
+
+
 class NetPartial(NetUp):
     state = staticmethod(lambda: "partial")
 

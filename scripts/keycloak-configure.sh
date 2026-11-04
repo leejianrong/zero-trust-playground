@@ -30,6 +30,17 @@ if [ -z "$(kc get clients -r clinic -q clientId=records-api --fields id --format
   quiet kc create clients -r clinic -s clientId=records-api -s bearerOnly=true
 fi
 
+# LABELLED WEAK, FOR ATTACKS ONLY: a client that signs in with a password and gets tokens meant for billing, not records-api.
+# The wrong-audience attack uses it to hold a genuine token that records-api must still refuse.
+if [ -z "$(kc get clients -r clinic -q clientId=attacker-cli --fields id --format csv --noquotes | tr -d '\r')" ]; then
+  quiet kc create clients -r clinic -s clientId=billing -s bearerOnly=true
+  quiet kc create clients -r clinic -s clientId=attacker-cli -s publicClient=true -s directAccessGrantsEnabled=true
+  CLI=$(kc get clients -r clinic -q clientId=attacker-cli --fields id --format csv --noquotes | tr -d '\r')
+  quiet kc create "clients/$CLI/protocol-mappers/models" -r clinic -s name=billing-audience \
+    -s protocol=openid-connect -s protocolMapper=oidc-audience-mapper \
+    -s 'config={"included.client.audience":"billing","access.token.claim":"true","id.token.claim":"false"}'
+fi
+
 for pair in aisha:clinician bob:receptionist; do
   user=${pair%%:*}; role=${pair##*:}
   if [ -z "$(kc get users -r clinic -q "username=$user" --fields id --format csv --noquotes | tr -d '\r')" ]; then
