@@ -64,6 +64,14 @@ jobs:
         working-directory: web
       - run: npx playwright test
         working-directory: web
+      - name: Cluster state after a failure
+        if: failure()
+        run: |
+          free -m
+          kubectl --context k3d-ztp get pods -A -o wide
+          kubectl --context k3d-ztp -n clinic get cm layer-modes -o jsonpath='{.data}'; echo
+          for d in web records-api billing postgres; do echo "== $d"; kubectl --context k3d-ztp -n clinic logs deploy/$d --tail=80 || true; done
+          kubectl --context k3d-ztp get events -A --sort-by=.lastTimestamp | tail -30
       - if: always()
         uses: actions/upload-artifact@v4
         with: {name: e2e-screenshots, path: web/e2e/screenshots}
