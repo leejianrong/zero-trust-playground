@@ -18,12 +18,14 @@ nav = [
     { "Turn on mutual TLS" = "layers-and-mtls.md" },
     { "Turn on the network layer" = "the-network-layer.md" },
     { "Turn on the secrets layer" = "the-secrets-layer.md" },
+    { "Turn on the user layer" = "the-user-layer.md" },
   ] },
   { "How-to guides" = [
     { "Read the cluster with Headlamp" = "how-to/read-the-cluster-with-headlamp.md" },
     { "Break the mTLS layer" = "how-to/break-the-mtls-layer.md" },
     { "Break the network layer" = "how-to/break-the-network-layer.md" },
     { "Break the secrets layer" = "how-to/break-the-secrets-layer.md" },
+    { "Break the user layer" = "how-to/break-the-user-layer.md" },
   ] },
   { "Concepts" = [
     { "Layered zero trust" = "concepts/layered-zero-trust.md" },

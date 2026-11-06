@@ -10,7 +10,7 @@ Vault runs in dev mode here: it keeps everything in memory, uses a fixed root to
 
 ```console
 $ make attack A=read-postgres
-read-postgres: SUCCEEDS   [identity=off, mtls=off, secrets=off, network=off]
+read-postgres: SUCCEEDS   [identity=off, mtls=off, secrets=off, user=off, network=off]
 expected succeeds: as expected
 {
   "rows": 5,
@@ -26,7 +26,7 @@ Open **Layers** and set **Short-lived secrets** to **Audit**, or run:
 
 ```console
 $ curl -s -X PUT localhost:8765/layers/secrets -H 'content-type: application/json' -d '{"mode":"audit"}'
-{"identity":"off","mtls":"off","secrets":"audit","network":"off"}
+{"identity":"off","mtls":"off","secrets":"audit","user":"off","network":"off"}
 ```
 
 `records-api` now logs in to Vault with its SPIFFE identity, asks for a database user, and uses that user instead of the shared password. Open the clinic page, or run:
@@ -47,7 +47,7 @@ The audit log hashes the username and password, so the event names who asked and
 
 ```console
 $ make attack A=read-postgres
-read-postgres: SUCCEEDS   [identity=off, mtls=off, secrets=audit, network=off]
+read-postgres: SUCCEEDS   [identity=off, mtls=off, secrets=audit, user=off, network=off]
 expected succeeds: as expected
 ```
 
@@ -57,14 +57,14 @@ Set **Short-lived secrets** to **Enforce**, or run:
 
 ```console
 $ curl -s -X PUT localhost:8765/layers/secrets -H 'content-type: application/json' -d '{"mode":"enforce"}'
-{"identity":"off","mtls":"off","secrets":"enforce","network":"off"}
+{"identity":"off","mtls":"off","secrets":"enforce","user":"off","network":"off"}
 ```
 
 The controller waits a few seconds so that `records-api` is already on Vault credentials, then changes the shared password to a random one that nobody knows. Run the attack again:
 
 ```console
 $ make attack A=read-postgres
-read-postgres: BLOCKED   [identity=off, mtls=off, secrets=enforce, network=off]
+read-postgres: BLOCKED   [identity=off, mtls=off, secrets=enforce, user=off, network=off]
 expected blocked: as expected
 stopped by: secrets (inferred)
 {
@@ -78,7 +78,7 @@ Postgres turned the old password away. The same goes for an attacker with code e
 
 ```console
 $ make attack A=postgres-from-billing
-postgres-from-billing: BLOCKED   [identity=off, mtls=off, secrets=enforce, network=off]
+postgres-from-billing: BLOCKED   [identity=off, mtls=off, secrets=enforce, user=off, network=off]
 expected blocked: as expected
 stopped by: secrets (inferred)
 ```

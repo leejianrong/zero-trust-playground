@@ -55,20 +55,30 @@ class FakeSec:
         self.log.append(action)
 
 
-def make(data=None, net=None, sec=None):
+class FakeUsr:
+    """Stands in for observer.users: whether Keycloak is up."""
+
+    def __init__(self, ready=True):
+        self.ready = ready
+
+    def keycloak_ready(self):
+        return self.ready
+
+
+def make(data=None, net=None, sec=None, usr=None):
     kube, store = FakeKube(data), Store()
     waits = []
 
     async def wait(seconds):
         waits.append(seconds)
 
-    app = create_app(store, sources=(), kube=kube, net=net or FakeNet(), sec=sec or FakeSec(), wait=wait)
+    app = create_app(store, sources=(), kube=kube, net=net or FakeNet(), sec=sec or FakeSec(), usr=usr or FakeUsr(), wait=wait)
     return TestClient(app), kube, store
 
 
 def test_reads_the_current_modes():
     client, _, _ = make({"identity": "enforce"})
-    assert client.get("/layers").json() == {"identity": "enforce", "mtls": "off", "secrets": "off", "network": "off"}
+    assert client.get("/layers").json() == {"identity": "enforce", "mtls": "off", "secrets": "off", "user": "off", "network": "off"}
 
 
 def test_a_change_is_written_and_announced():
@@ -200,3 +210,21 @@ def test_secrets_is_refused_with_a_reason_when_vault_is_not_installed():
     assert r.status_code == 409 and "make vault" in r.json()["detail"]
     assert kube.patches == [] and sec.log == [] and store.since(0) == []
     assert client.put("/layers/secrets", json={"mode": "off"}).status_code == 200  # off never needs Vault
+
+
+def test_user_layer_changes_the_configmap_and_is_reported():
+    client, kube, store = make()
+    assert client.get("/layers").json()["user"] == "off"
+    r = client.put("/layers/user", json={"mode": "audit"})
+    assert r.status_code == 200 and kube.data["user"] == "audit"
+    assert client.get("/layers").json()["user"] == "audit"
+    assert [e["kind"] for e in store.since(0)] == ["layer_mode_changed"]
+
+
+def test_user_layer_is_refused_with_a_reason_when_keycloak_is_not_installed():
+    client, kube, store = make(usr=FakeUsr(ready=False))
+    for mode in ("audit", "enforce"):
+        r = client.put("/layers/user", json={"mode": mode})
+        assert r.status_code == 409 and "make keycloak" in r.json()["detail"]
+    assert kube.patches == [] and store.since(0) == []
+    assert client.put("/layers/user", json={"mode": "off"}).status_code == 200  # off never needs Keycloak

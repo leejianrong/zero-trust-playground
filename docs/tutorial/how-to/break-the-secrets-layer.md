@@ -4,7 +4,7 @@ Run these with the secrets layer enforced and the other layers off. Each one sho
 
 ```console
 $ curl -s -X PUT localhost:8765/layers/secrets -H 'content-type: application/json' -d '{"mode":"enforce"}'
-{"identity":"off","mtls":"off","secrets":"enforce","network":"off"}
+{"identity":"off","mtls":"off","secrets":"enforce","user":"off","network":"off"}
 ```
 
 Keep the clinic page open through `make web` and the **Secrets** view open in the dashboard. Vault must be installed (`make vault`).
@@ -121,5 +121,5 @@ One thing the layer cannot do is close a connection that is already open. When a
 
 ```console
 $ curl -s -X PUT localhost:8765/layers/secrets -H 'content-type: application/json' -d '{"mode":"off"}'
-{"identity":"off","mtls":"off","secrets":"off","network":"off"}
+{"identity":"off","mtls":"off","secrets":"off","user":"off","network":"off"}
 ```

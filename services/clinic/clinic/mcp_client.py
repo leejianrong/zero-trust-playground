@@ -7,7 +7,7 @@ import httpx2
 from mcp.client import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
-from .common import _mesh_material, secure
+from .common import _mesh_material, secure, user_token_var
 from .mtls import client_context
 
 MCP_URL = os.environ.get("MCP_URL", "http://records-mcp.clinic.svc:8080/mcp")
@@ -15,7 +15,9 @@ MCP_URL = os.environ.get("MCP_URL", "http://records-mcp.clinic.svc:8080/mcp")
 
 @contextlib.asynccontextmanager
 async def open_session(caller: str, trace: str | None = None, url: str = MCP_URL):
-    headers = {"x-caller": caller, **({"x-trace-id": trace} if trace else {})}
+    token = user_token_var.get()
+    headers = {"x-caller": caller, **({"x-trace-id": trace} if trace else {}),
+               **({"authorization": f"Bearer {token}"} if token else {})}
     material = _mesh_material()
     async with httpx2.AsyncClient(headers=headers, timeout=10,
                                   verify=client_context(material) if material else True) as http, \

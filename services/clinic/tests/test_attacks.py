@@ -115,3 +115,61 @@ def test_a_revoked_password_is_its_own_failure_phase():
 def test_a_connect_timeout_is_a_connect_failure():
     assert blocked_by(httpx.ConnectTimeout("timed out"))["phase"] == "connect"
     assert blocked_by(psycopg.OperationalError("connection timeout expired"))["phase"] == "connect"
+
+
+def test_the_forged_user_header_attack_sends_x_user_and_no_token():
+    seen = []
+
+    def handler(request):
+        seen.append((request.headers.get("x-user"), request.headers.get("authorization")))
+        return httpx.Response(200, json=[{}])
+
+    assert run("forged-user-header", client(handler))["outcome"] == "succeeds"
+    assert seen == [("aisha", None)]
+
+
+def test_the_wrong_audience_attack_presents_a_real_token_that_names_another_service():
+    seen = []
+
+    def handler(request):
+        if request.url.path.endswith("/token"):
+            seen.append(("token", request.content.decode()))
+            return httpx.Response(200, json={"access_token": "billing-token"})
+        seen.append(("records", request.headers.get("authorization")))
+        return httpx.Response(401, json={"layer": "user", "reason": "wrong audience"})
+
+    result = run("wrong-audience-token", client(handler))
+    assert result["outcome"] == "blocked" and result["evidence"]["phase"] == "request"
+    assert seen[0][0] == "token" and "client_id=attacker-cli" in seen[0][1] and "username=aisha" in seen[0][1]
+    assert seen[1] == ("records", "Bearer billing-token")
+
+
+def test_the_wrong_audience_attack_does_not_pass_as_blocked_when_keycloak_is_missing():
+    import pytest
+
+    from clinic.attacks.run import SetupError
+
+    def handler(request):
+        raise httpx.ConnectError("no route")
+
+    with pytest.raises(SetupError, match="make keycloak"):
+        run("wrong-audience-token", client(handler))
+
+
+def test_an_mcp_tool_that_is_refused_blocks_the_attack(monkeypatch):
+    from clinic.attacks import run as attacks
+
+    class Session:
+        async def call_tool(self, name):
+            return type("R", (), {"is_error": True, "content": [type("T", (), {"text": "records-api answered 401. user layer: no token"})()]})()
+
+    class Opened:
+        async def __aenter__(self):
+            return Session()
+
+        async def __aexit__(self, *exc):
+            return False
+
+    monkeypatch.setattr(attacks, "open_session", lambda *a, **k: Opened())
+    result = run("mcp-no-identity", client(lambda r: httpx.Response(200)))
+    assert result["outcome"] == "blocked" and "user layer" in result["evidence"]["detail"]

@@ -12,6 +12,8 @@ import httpx
 from fastapi import FastAPI, Request
 
 trace_var: contextvars.ContextVar[str | None] = contextvars.ContextVar("trace", default=None)
+# The signed-in user's access token for this request. Every outbound call carries it, so records-api can tell who it is for.
+user_token_var: contextvars.ContextVar[str | None] = contextvars.ContextVar("user_token", default=None)
 
 
 def emit(**fields):
@@ -41,7 +43,17 @@ def start_background(service: str):
     return modes, identity
 
 
-def instrument(app: FastAPI, service: str) -> FastAPI:
+def bearer_value(header: str) -> str | None:
+    """The token in an `Authorization: Bearer <token>` header value, else None."""
+    return header[7:].strip() if header.lower().startswith("bearer ") else None
+
+
+def bearer(request: Request) -> str | None:
+    return bearer_value(request.headers.get("authorization", ""))
+
+
+def instrument(app: FastAPI, service: str, user_token=None) -> FastAPI:
+    """`user_token(request)` says where this service gets the user's token. The default is the Authorization header."""
     from clinic.guard import Guard
 
     modes, _identity = start_background(service)
@@ -52,6 +64,7 @@ def instrument(app: FastAPI, service: str) -> FastAPI:
     async def trace_and_log(request: Request, call_next):
         trace = request.headers.get("x-trace-id") or uuid.uuid4().hex[:12]
         trace_var.set(trace)
+        user_token_var.set((user_token or bearer)(request))
         response = await call_next(request)
         response.headers["x-trace-id"] = trace
         if request.url.path != "/healthz":
@@ -97,6 +110,8 @@ def client(service: str) -> httpx.Client:
     headers = {"x-caller": service}
     if trace := trace_var.get():
         headers["x-trace-id"] = trace
+    if token := user_token_var.get():
+        headers["authorization"] = f"Bearer {token}"
     material = _mesh_material()
     c = _Mesh(headers=headers, timeout=5, verify=client_context(material) if material else True)
     c._material = material

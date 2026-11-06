@@ -44,6 +44,16 @@ export const LAYERS: LayerInfo[] = [
     },
   },
   {
+    id: "user",
+    name: "User identity",
+    what: "A person signs in through Keycloak, and records-api decides what they may do from their role.",
+    modes: {
+      off: "records-api trusts an X-User header, so anyone can claim to be anyone.",
+      audit: "records-api checks the user's token and logs what it would refuse. Nothing is refused yet.",
+      enforce: "A request with no valid token gets a 401, and one the user's role does not allow gets a 403.",
+    },
+  },
+  {
     id: "network",
     name: "Network policy",
     what: "Kubernetes decides which pods may open a connection to which. Anything not on the list is dropped.",

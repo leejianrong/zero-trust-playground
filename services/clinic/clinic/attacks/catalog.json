@@ -67,6 +67,12 @@
             "network": "enforce"
           },
           "outcome": "blocked"
+        },
+        {
+          "when": {
+            "user": "enforce"
+          },
+          "outcome": "blocked"
         }
       ]
     },
@@ -114,6 +120,12 @@
             "network": "enforce"
           },
           "outcome": "blocked"
+        },
+        {
+          "when": {
+            "user": "enforce"
+          },
+          "outcome": "blocked"
         }
       ]
     }
@@ -143,9 +155,73 @@
             "network": "enforce"
           },
           "outcome": "blocked"
+        },
+        {
+          "when": {
+            "user": "enforce"
+          },
+          "outcome": "blocked"
         }
       ]
     }
+  },
+  {
+    "name": "forged-user-header",
+    "title": "Claim to be a clinician with a header",
+    "description": "From the attacker pod, ask records-api for every patient and say you are aisha in an X-User header, with no token. With the user layer off, records-api believes the header.",
+    "expected": {
+      "default": "succeeds",
+      "rules": [
+        {
+          "when": {
+            "mtls": "enforce"
+          },
+          "outcome": "blocked"
+        },
+        {
+          "when": {
+            "network": "enforce"
+          },
+          "outcome": "blocked"
+        },
+        {
+          "when": {
+            "user": "enforce"
+          },
+          "outcome": "blocked"
+        }
+      ]
+    },
+    "target": "records-api"
+  },
+  {
+    "name": "wrong-audience-token",
+    "title": "Present a real token meant for another service",
+    "description": "From the attacker pod, sign in as aisha with a client whose tokens name billing as their audience, then send that token to records-api. The signature is valid and the person is real. The token is not for this service.",
+    "expected": {
+      "default": "succeeds",
+      "rules": [
+        {
+          "when": {
+            "mtls": "enforce"
+          },
+          "outcome": "blocked"
+        },
+        {
+          "when": {
+            "network": "enforce"
+          },
+          "outcome": "blocked"
+        },
+        {
+          "when": {
+            "user": "enforce"
+          },
+          "outcome": "blocked"
+        }
+      ]
+    },
+    "target": "records-api"
   },
   {
     "name": "agent-prompt-injection",
@@ -153,7 +229,15 @@
     "description": "A user-entered diagnosis hides an instruction. A user presses Summarise with AI in the clinic app. The simulated agent summarises the records, obeys the hidden instruction, and deletes a decoy patient it was never asked to touch.",
     "target": "records-mcp",
     "expected": {
-      "default": "succeeds"
+      "default": "succeeds",
+      "rules": [
+        {
+          "when": {
+            "user": "enforce"
+          },
+          "outcome": "blocked"
+        }
+      ]
     }
   }
 ]
