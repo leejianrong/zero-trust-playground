@@ -44,10 +44,10 @@ test("a sign-in, a refused write and a wrong password all show on the Users view
     const [h, m, sec] = (el.querySelector("td")?.textContent ?? "0:0:0").split(":").map(Number);
     return h * 3600 + m * 60 + sec >= t;
   }), t0);
-  await expect(page.getByRole("row", { name: /^bob receptionist Signed in/ })).toBeVisible({ timeout: 5_000 });
-  await expect.poll(() => fresh(page.getByRole("row", { name: /bob web records-api, account POST \/patients Refused/ })), { timeout: 5_000 }).toBe(true);
-  await expect.poll(() => fresh(page.getByRole("row", { name: /bob web records-api, account GET \/patients(\/\d+)? Allowed/ })), { timeout: 5_000 }).toBe(true);
-  await expect(page.getByText(/could not sign in to web: invalid_user_credentials/).first()).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByRole("row", { name: /^bob receptionist Signed in/ })).toBeVisible({ timeout: 15_000 });
+  await expect.poll(() => fresh(page.getByRole("row", { name: /bob web records-api, account POST \/patients Refused/ })), { timeout: 15_000 }).toBe(true);
+  await expect.poll(() => fresh(page.getByRole("row", { name: /bob web records-api, account GET \/patients(\/\d+)? Allowed/ })), { timeout: 15_000 }).toBe(true);
+  await expect(page.getByText(/could not sign in to web: invalid_user_credentials/).first()).toBeVisible({ timeout: 15_000 });
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.screenshot({ path: "e2e/screenshots/users.png", fullPage: true });
 });

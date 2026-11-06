@@ -17,6 +17,8 @@ const headlampRunning = (() => {
 export default defineConfig({
   testDir: "e2e",
   timeout: 120_000,
+  // A shared CI runner is slow to render the first rows; the default 5 seconds failed two different tests in two runs.
+  expect: { timeout: 15_000 },
   workers: 1, // tests share one cluster, and one of them removes a registration
   use: { baseURL: "http://localhost:5173" },
   webServer: [
