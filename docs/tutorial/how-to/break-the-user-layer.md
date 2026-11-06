@@ -119,8 +119,6 @@ Refused by the user layer: the token was signed with a key Keycloak no longer ha
 
 The new realm has new signing keys, and the old token names a key that no longer exists. Sign out and sign in again and it works. If you reload without restarting `records-api` first, the page may still work for a few minutes: `records-api` keeps the old keys in memory, and the old token is still valid until it expires.
 
-The observer keeps following the logs of the pods that existed when it started. After `records-api` restarts, stop the observer and start it again with `make observer`, or it will miss the refusals from the new pod. An attack run at that point reports `stopped by: no layer recorded an event`.
-
 ## Put everything back
 
 ```console
