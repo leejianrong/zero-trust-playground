@@ -57,6 +57,43 @@ def test_a_token_signed_with_none_is_refused():
         verifier().verify(forged)
 
 
+@pytest.mark.parametrize("bad", [lambda: token(exp=-10), lambda: token(iss="http://evil/realms/clinic"), lambda: token(aud="billing")])
+def test_a_refusal_after_the_signature_checked_out_still_names_the_person(bad):
+    with pytest.raises(TokenError) as e:
+        verifier().verify(bad())
+    assert e.value.claims.user == "aisha" and e.value.claims.client == "web"
+
+
+def test_a_refusal_for_a_bad_signature_names_nobody():
+    with pytest.raises(TokenError) as e:
+        verifier().verify(token(key=OTHER_KEY))
+    assert e.value.claims is None  # the claims were not vouched for, so they are not repeated
+
+
+def test_a_wrong_audience_refusal_carries_who_it_was_for_the_log():
+    why, claims, status = UserGuard(inner, "records-api", lambda: "enforce", verifier()).decide(
+        {b"authorization": b"Bearer " + token(aud="billing").encode()}, "GET")
+    assert status == 401 and "wrong audience" in why
+    assert claims.user == "aisha" and claims.audience == ["billing"]
+
+
+def test_a_key_keycloak_does_not_have_says_so():
+    class NoSuchKey:
+        def get_signing_key_from_jwt(self, token):
+            raise jwt.PyJWKClientError("Unable to find a signing key that matches: 'old'")
+
+    with pytest.raises(TokenError) as e:
+        TokenVerifier(ISSUER, AUDIENCE, NoSuchKey()).verify(token())
+    assert "no longer has" in str(e.value) and "PyJWKClientError" not in str(e.value)
+
+
+def test_an_unsigned_token_says_which_algorithm_it_used():
+    forged = jwt.encode({"iss": ISSUER, "aud": AUDIENCE}, None, algorithm="none")
+    with pytest.raises(TokenError) as e:
+        verifier().verify(forged)
+    assert "none" in str(e.value) and "RS256" in str(e.value)
+
+
 async def inner(scope, receive, send):
     await send({"type": "http.response.start", "status": 200, "headers": []})
     await send({"type": "http.response.body", "body": b"ok"})
