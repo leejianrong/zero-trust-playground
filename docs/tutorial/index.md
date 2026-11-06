@@ -17,14 +17,15 @@ It follows the [Layered Zero Trust validated pattern](https://validatedpatterns.
 | Layers switched off, audit and enforce | the Layers and Architecture views on port 5173 | [Turn on mutual TLS](layers-and-mtls.md) |
 | Network policies applied, and a pod refused | the command line and the Layers view | [Turn on the network layer](the-network-layer.md) |
 | Short-lived database credentials, and the old password refused | the Secrets and Layers views | [Turn on the secrets layer](the-secrets-layer.md) |
+| Sign-in, roles, and a forged identity refused | the Users and Layers views | [Turn on the user layer](the-user-layer.md) |
 | An AI agent using the app | the command line (`make attack`) | [Agents and MCP](agents-and-mcp.md) |
 
 ## Where the playground is today
 
-Slices V1, V2, V2b, V3, V4 and V5 are built. Every workload has an identity, there is a real app, and with no layers on **every attack succeeds**. Switch on identity and mutual TLS, and three of the seven attacks are blocked. Switch on the network layer and the two Postgres attacks are stopped too, along with the three that mTLS stops. Switch on the secrets layer and the shared database password stops working, which stops the same two Postgres attacks at the password. The rest need Keycloak and agent scopes, which arrive next.
+Slices V1, V2, V2b, V3, V4, V5 and V6 are built. Every workload has an identity, there is a real app, and with no layers on **every attack succeeds**. Of the nine attacks, mutual TLS blocks six, the network layer blocks eight, the secrets layer blocks the two that read Postgres directly, and the user layer blocks six. No single layer stops all nine, and the prompt-injection attack is stopped only by the user layer, and only because its attacker has no account. Closing that gap needs an identity for the agent and scopes for its tools, which arrive next.
 
 ## What you need
 
-Docker, [k3d](https://k3d.io), kubectl, helm, [uv](https://docs.astral.sh/uv/) and Node.js. About 2 GB of free memory for the cluster (we measured 1.6 GiB with everything running).
+Docker, [k3d](https://k3d.io), kubectl, helm, [uv](https://docs.astral.sh/uv/) and Node.js. About 3 GB of free memory for the cluster (we measured 2.4 GiB with SPIRE, Vault, Keycloak and the clinic running, without Headlamp).
 
 Start with [Get started](get-started.md).
