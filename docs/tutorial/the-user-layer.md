@@ -81,10 +81,10 @@ Nothing changed for the attacker. What changed is the record. `records-api` chec
 
 ```console
 $ curl -s 'localhost:8765/events?follow=false' | grep '^data:' | grep would_deny | tail -1 | sed 's/^data: //'
-{"v": 1, "ts": 1793930431.8424637, "layer": "user", "kind": "user_authorisation", "verdict": "info", "src": "anonymous", "dst": "records-api", "reason": "the token is not for records-api: wrong audience", "trace": "25dde478a9ac", "evidence": {"mode": "audit", "decision": "would_deny", "method": "GET", "route": "/patients", "subject": null, "roles": [], "client": null, "audience": []}, "id": 19206}
+{"v": 1, "ts": 1793931917.3555841, "layer": "user", "kind": "user_authorisation", "verdict": "info", "src": "aisha", "dst": "records-api", "reason": "the token is not for records-api: wrong audience", "trace": "252e269ac4ae", "evidence": {"mode": "audit", "decision": "would_deny", "method": "GET", "route": "/patients", "subject": "a5f3a96b-3f8a-41e9-91b6-4ede4440570f", "roles": ["clinician"], "client": "attacker-cli", "audience": ["billing", "account"]}, "id": 20141}
 ```
 
-Two things to notice. The verdict is `info`, because audit lets the request through. And `src` says `anonymous` although the token belonged to a real person: the check stops at the audience and does not read the rest of the token, so the event does not name them yet.
+Two things to notice. The verdict is `info`, because audit lets the request through. And the event names the person the token belonged to, the client it came from, and the audience it was made for. The signature checked out, so those claims can be trusted for the log even though the token was refused for something else. A token with a bad signature is logged as `anonymous`, because nothing in it can be trusted.
 
 ## Enforce: no identity, no records
 

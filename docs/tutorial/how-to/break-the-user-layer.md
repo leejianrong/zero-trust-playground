@@ -39,13 +39,13 @@ print("role edited   ->", call(f"{head}.{enc(claims)}.{sig}"))
 print("alg none      ->", call(enc({"alg": "none", "typ": "JWT"}) + "." + enc({**claims, "aud": "records-api"}) + "."))
 EOF
 real token: {'iss': 'http://localhost:8180/realms/clinic', 'aud': ['billing', 'account'], 'azp': 'attacker-cli', 'preferred_username': 'bob'}
-as issued     -> (401, '{"error": "refused", "layer": "user", "reason": "the token is not for records-api: wrong audience", "trace": "6642c8e09cca"}')
-aud edited    -> (401, '{"error": "refused", "layer": "user", "reason": "the token signature does not match: bad signature", "trace": "7a2aeb67bc80"}')
-role edited   -> (401, '{"error": "refused", "layer": "user", "reason": "the token signature does not match: bad signature", "trace": "090f476f0370"}')
-alg none      -> (401, '{"error": "refused", "layer": "user", "reason": "the token is malformed or unusable: PyJWKClientError", "trace": "ceb2b97e7628"}')
+as issued     -> (401, '{"error": "refused", "layer": "user", "reason": "the token is not for records-api: wrong audience", "trace": "040e6a2c3e29"}')
+aud edited    -> (401, '{"error": "refused", "layer": "user", "reason": "the token signature does not match: bad signature", "trace": "dff69c01b011"}')
+role edited   -> (401, '{"error": "refused", "layer": "user", "reason": "the token signature does not match: bad signature", "trace": "9fe4c2991998"}')
+alg none      -> (401, '{"error": "refused", "layer": "user", "reason": "the token is not signed with RS256 (it says none): it cannot be checked", "trace": "5df021002573"}')
 ```
 
-Four refusals, three different reasons. The real token is refused for its audience. The two edited tokens are refused because the signature was made over the original claims, and `records-api` checks it against Keycloak's public key. The unsigned token is refused too. The last message is not a good one: the token has no key id, so there is no key to look up, and the check reports a failure to find one.
+Four refusals, three different reasons. The real token is refused for its audience. The two edited tokens are refused because the signature was made over the original claims, and `records-api` checks it against Keycloak's public key. The unsigned token is refused too, and the message says why: `records-api` only accepts RS256, so a token that names `none` as its algorithm is never checked at all.
 
 The issuer in the real token is `http://localhost:8180/realms/clinic`, even though this call went to Keycloak through its service name inside the cluster. That is on purpose. Keycloak is told one fixed name for itself, and `records-api` compares the issuer to that string. It is a string match, not an address.
 
@@ -74,7 +74,7 @@ $ curl -s 'localhost:8765/events?follow=false' | grep '^data:' | grep user_autho
 {"v": 1, "ts": 1793930529.63682, "layer": "user", "kind": "user_authorisation", "verdict": "deny", "src": "bob", "dst": "records-api", "reason": "bob has receptionist, which does not allow write", "trace": "8d313a58e6d5", "evidence": {"mode": "enforce", "decision": "deny", "method": "DELETE", "route": "/patients/7", "subject": "c9f439c0-d1a8-43f0-8972-f13d22d0be6f", "roles": ["receptionist"], "client": "web", "audience": ["records-api", "account"]}, "id": 19296}
 ```
 
-The layer limited the injected text to what bob may do. That is a real benefit, and it is not a fix. Notice what the page says under **Summarise with AI**: it lists `delete_patient` among the tools the agent used, with no sign that the call was refused. Only the observer knows. A response that hides a refusal is a gap, and we have not closed it.
+The layer limited the injected text to what bob may do. That is a real benefit, and it is not a fix. Notice what the page says under **Summarise with AI**: it lists `delete_patient (refused)` among the tools the agent used. The agent obeyed the text, and the layer stopped what the obeying could do.
 
 ## Stop Keycloak and predict what breaks
 
@@ -114,10 +114,10 @@ keycloak configured: realm clinic, clients web records-api, roles clinician rece
 Reload the page without signing in again. It is refused:
 
 ```text
-Refused by the user layer: the token is malformed or unusable: PyJWKClientError
+Refused by the user layer: the token was signed with a key Keycloak no longer has: sign in again
 ```
 
-The new realm has new signing keys, and the old token names a key that no longer exists. The message is poor, because the real cause is that the key is unknown, not that the token is malformed. Sign out and sign in again and it works.
+The new realm has new signing keys, and the old token names a key that no longer exists. Sign out and sign in again and it works. If you reload without restarting `records-api` first, the page may still work for a few minutes: `records-api` keeps the old keys in memory, and the old token is still valid until it expires.
 
 The observer keeps following the logs of the pods that existed when it started. After `records-api` restarts, stop the observer and start it again with `make observer`, or it will miss the refusals from the new pod. An attack run at that point reports `stopped by: no layer recorded an event`.
 
