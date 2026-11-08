@@ -26,6 +26,8 @@ spec:
         # The observer reads sign-in events from the log, and successes are hidden by default.
         - {name: KC_SPI_EVENTS_LISTENER__JBOSS_LOGGING__SUCCESS_LEVEL, value: info}
         - {name: JAVA_OPTS_KC_HEAP, value: "-Xms128m -Xmx384m"}
+        # Over the limit only this pod is killed, not the node (about 705 MB measured, ADR-0013).
+        resources: {requests: {memory: 512Mi}, limits: {memory: 900Mi}}
         ports: [{containerPort: 8080}]
         readinessProbe: {httpGet: {path: /realms/master, port: 8080}, periodSeconds: 5}
 ---
