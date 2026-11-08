@@ -8,7 +8,7 @@ from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from . import adapters, layers, links, network, secrets, users
+from . import adapters, layers, links, network, runtime, secrets, users
 from .normalize import event
 from .store import Store
 
@@ -28,7 +28,7 @@ class ModeChange(BaseModel):
     mode: str
 
 
-def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl_exec, catalog=CATALOG,
+def create_app(store: Store | None = None, sources=(*adapters.ALL, runtime.detector), exec_in=kubectl_exec, catalog=CATALOG,
                probe_url=links.probe, kube=kubectl, wait=asyncio.sleep, net=network, sec=secrets, usr=users):
     store = store or Store("observer.db")
     attacks = {a["name"]: a for a in json.loads(Path(catalog).read_text())}
