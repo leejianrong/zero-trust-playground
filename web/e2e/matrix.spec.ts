@@ -57,7 +57,7 @@ for (const { identity, mtls, network, secrets, user } of SETTINGS) {
       const ev = (await (await request.post(`${OBSERVER}/attacks/${name}/run`, { timeout: 60_000 })).json()).evidence;
       expect(ev.modes, name).toMatchObject({ identity, mtls, network, secrets, user });
       // A blocked attack says why (`phase`, `error`, `detail`), so a failure in CI names its cause.
-      const why = ev.error ? ` (${ev.phase}: ${ev.error}: ${ev.detail})` : "";
+      const why = ev.detail?.error ? ` (${ev.detail.phase}: ${ev.detail.error}: ${ev.detail.detail})` : "";
       expect(ev.as_expected, `${name}: ${ev.outcome}, expected ${ev.expected}${why}`).toBe(true);
       if (ev.outcome !== "blocked") continue;
       // A dropped connection never reaches a service, so the network is named (as an inference) whenever it is
