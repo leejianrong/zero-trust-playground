@@ -223,7 +223,9 @@ def test_a_long_history_replays_without_pausing_between_pages(monkeypatch):
 
     async def counting_sleep(seconds):
         pauses.append(seconds)
-        await real_sleep(0)
+        # Really wait: a zero-length pause lets the loop spin and count again while a slow reader is still draining
+        # the last page, so the count depended on how fast the machine was. The client closes the stream first.
+        await real_sleep(2)
 
     monkeypatch.setattr(app_module.asyncio, "sleep", counting_sleep)
     store = Store()
