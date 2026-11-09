@@ -111,7 +111,7 @@ $("#summarise").onclick = async () => {
   $("#summary").textContent = "Reading the records…";
   try {
     const task = await api("POST", "/api/agent/summarise");
-    const calls = task.tool_calls.map((c) => c.tool).join(", ");
+    const calls = task.tool_calls.map((c) => c.refused ? `${c.tool} (refused)` : c.tool).join(", ");
     $("#summary").textContent = `${task.summary}. The agent used: ${calls}.`;
     await load();
   } catch (e) { $("#summary").textContent = e.message; }

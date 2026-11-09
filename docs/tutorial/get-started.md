@@ -71,6 +71,9 @@ Leave it running and browse to <http://localhost:8081>. You see a patient list w
 !!! warning "Redeploying drops the connection"
     `make clinic` replaces the pods, and the port-forward from `make web` points at the old one. If the page stops loading after a redeploy, stop `make web` and start it again.
 
+!!! warning "A cluster stopped for a day needs a reset"
+    SPIRE's certificate authority lasts 24 hours. If you stop the cluster for longer and start it again, the SPIRE agent can no longer trust the server and pods wait for their identity. The reliable fix is to start over with `make down` and `make up`. A quicker one is to delete the `spire-agent` pod in the `spire-server` namespace, then restart the workloads that were waiting.
+
 ## Recap
 
 - `make up` creates the cluster, and `make clinic` deploys the app.

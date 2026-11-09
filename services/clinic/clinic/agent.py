@@ -34,8 +34,11 @@ async def summarise(session, obey: bool) -> dict:
     followed = []
     for record in records:
         for tool, args in injected_calls(" ".join(str(v) for v in record.values())) if obey else []:
-            await session.call_tool(tool, args)
-            followed.append({"tool": tool, "args": args, "origin": f"text in record {record['id']}"})
+            result = await session.call_tool(tool, args)
+            call = {"tool": tool, "args": args, "origin": f"text in record {record['id']}"}
+            if result.is_error:
+                call["refused"] = text_of(result)  # the agent obeyed; whoever it acted for was not allowed
+            followed.append(call)
     tool_calls += followed
     return {"summary": f"{len(records)} patients on file", "tool_calls": tool_calls, "obeyed_injected_text": bool(followed)}
 
