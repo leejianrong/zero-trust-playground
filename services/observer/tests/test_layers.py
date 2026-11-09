@@ -1,5 +1,7 @@
+import asyncio
 import json
 
+import httpx
 from fastapi.testclient import TestClient
 
 from observer.app import create_app
@@ -194,6 +196,36 @@ def test_leaving_secrets_enforce_restores_the_static_password_before_the_service
     client, log = ordered({"secrets": "enforce"})
     assert client.put("/layers/secrets", json={"mode": "off"}).status_code == 200
     assert log == ["restore", "patch"]
+
+
+def test_leaving_enforce_while_entering_it_is_still_revoking_ends_with_the_password_restored():
+    """A fast click on Off while Enforce is still revoking used to leave the mode off with the password revoked."""
+    log = []
+
+    async def recording(*args):
+        if "get" in args:
+            return json.dumps({"data": {"identity": "off", "mtls": "off", "secrets": recording.mode}})
+        recording.mode = json.loads(args[args.index("-p") + 1])["data"]["secrets"]
+        log.append("patch")
+        return ""
+
+    recording.mode = "off"
+
+    async def slow_wait(_):
+        await asyncio.sleep(0.2)  # long enough for the second request to arrive
+
+    app = create_app(Store(), sources=(), kube=recording, net=FakeNet(), sec=FakeSec(log=log), wait=slow_wait)
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as c:
+            enforce = asyncio.create_task(c.put("/layers/secrets", json={"mode": "enforce"}))
+            await asyncio.sleep(0.05)  # the ConfigMap now says enforce, the revoke has not happened yet
+            off = await c.put("/layers/secrets", json={"mode": "off"})
+            return (await enforce).status_code, off.status_code
+
+    assert asyncio.run(run()) == (200, 200)
+    assert recording.mode == "off"
+    assert [a for a in log if a != "patch"][-1] == "restore", log
 
 
 def test_secrets_audit_issues_credentials_and_leaves_the_static_password_alone():
