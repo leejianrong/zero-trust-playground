@@ -38,7 +38,8 @@ async function setModes(request: APIRequestContext, identity: string, mtls: stri
   const u = await request.put(`${OBSERVER}/layers/user`, { data: { mode: user } });
   expect(u.ok(), `user to ${user}: ${await u.text()}`).toBe(true);
   // The web service reports the modes it acts on. The others poll the same ConfigMap every 2 seconds.
-  await expect.poll(async () => (await (await request.get(`${WEB}/healthz`)).json()).modes, { timeout: 10_000 })
+  // A request the port-forward drops throws, and expect.poll does not retry a throw, so count it as "not yet".
+  await expect.poll(async () => (await (await request.get(`${WEB}/healthz`).catch(() => null))?.json())?.modes, { timeout: 10_000 })
     .toMatchObject({ identity, mtls });
   await new Promise((done) => setTimeout(done, 4_000));
 }
