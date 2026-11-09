@@ -144,8 +144,14 @@ def create_app(store: Store | None = None, sources=adapters.ALL, exec_in=kubectl
     async def get_layers():
         return await current_modes()
 
+    change = asyncio.Lock()  # one mode change at a time: a quick Off must not interleave with an Enforce still revoking
+
     @app.put("/layers/{layer}")
     async def put_layer(layer: str, body: ModeChange):
+        async with change:
+            return await apply_layer(layer, body)
+
+    async def apply_layer(layer: str, body: ModeChange):
         if layer not in layers.LAYERS:
             raise HTTPException(422, f"unknown layer {layer}; known: {', '.join(layers.LAYERS)}")
         if body.mode not in layers.MODES:

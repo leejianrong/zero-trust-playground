@@ -5,7 +5,9 @@ const put = (page: Page, layer: string, mode: string) => page.request.put(`${OBS
 const reset = async (page: Page) => { await put(page, "user", "off"); await put(page, "secrets", "off"); await put(page, "network", "off"); await put(page, "mtls", "off"); await put(page, "identity", "off"); };
 
 test.beforeEach(async ({ page }) => reset(page));
-test.afterEach(async ({ page }) => reset(page));
+// Services follow a mode change on their own 2 second poll. Without a wait the next spec starts while some of them
+// still enforce, and its first calls fail (the clinic page showed "unavailable" for billing).
+test.afterEach(async ({ page }) => { await reset(page); await new Promise((done) => setTimeout(done, 3_000)); });
 
 test("each layer names its pattern component and the unbuilt ones say so", async ({ page }) => {
   await page.goto("/#architecture");
