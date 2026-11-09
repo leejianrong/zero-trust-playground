@@ -53,6 +53,10 @@ jobs:
         with: {node-version: 24, cache: npm, cache-dependency-path: web/package-lock.json}
       - name: Install k3d
         run: curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=v5.9.0 bash
+      - name: Start resource sampler
+        run: |
+          nproc; free -m; df -h / | tail -1
+          nohup scripts/ci-sample.sh "$RUNNER_TEMP/resources.log" 10 >/dev/null 2>&1 &
       - run: make up
       - run: make echo
       - run: make clinic
@@ -66,12 +70,22 @@ jobs:
         working-directory: web
       - run: npx playwright install --with-deps chromium
         working-directory: web
-      - run: npx playwright test
+      - name: Cluster state before the tests
+        run: |
+          free -m
+          kubectl --context k3d-ztp get pods -A -o wide
+          kubectl --context k3d-ztp top pods -A || true
+      # `list` prints each test and its duration, so a slow test or a long gap stands out in the log.
+      - run: npx playwright test --reporter=list --trace=retain-on-failure
         working-directory: web
+      - name: Resource samples
+        if: always()
+        run: cat "$RUNNER_TEMP/resources.log"
       - name: Cluster state after a failure
         if: failure()
         run: |
           free -m
+          kubectl --context k3d-ztp top pods -A || true
           kubectl --context k3d-ztp get pods -A -o wide
           kubectl --context k3d-ztp -n clinic get cm layer-modes -o jsonpath='{.data}'; echo
           for d in web records-api billing postgres; do echo "== $d"; kubectl --context k3d-ztp -n clinic logs deploy/$d --tail=80 || true; done
@@ -79,3 +93,10 @@ jobs:
       - if: always()
         uses: actions/upload-artifact@v4
         with: {name: e2e-screenshots, path: web/e2e/screenshots}
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-diagnostics
+          path: |
+            ${{ runner.temp }}/resources.log
+            web/test-results
