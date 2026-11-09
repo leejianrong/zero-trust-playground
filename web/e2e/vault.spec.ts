@@ -111,6 +111,12 @@ const answers = (request: APIRequestContext) => async () => {
   try { return (await request.get(`${WEB}/api/patients`)).status(); } catch { return 0; }
 };
 const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
+// The loop below asks every 10 seconds for 200 seconds, and the port-forward sometimes resets a connection that sat
+// idle. That says nothing about records-api, so retry once after a dropped connection; a wrong status still fails.
+const patientsStatus = async (request: APIRequestContext) => {
+  try { return (await request.get(`${WEB}/api/patients`)).status(); } catch { await sleep(1_000); }
+  return (await request.get(`${WEB}/api/patients`)).status();
+};
 const setSecrets = async (request: APIRequestContext, mode: string) => {
   const r = await request.put(`${OBSERVER}/layers/secrets`, { data: { mode }, timeout: 60_000 });
   expect(r.ok(), `secrets to ${mode}: ${await r.text()}`).toBe(true);
@@ -131,7 +137,7 @@ test("records-api serves across two rotations with the static password revoked",
   await setSecrets(request, "enforce");
   try {
     for (const end = Date.now() + 200_000; Date.now() < end; await sleep(10_000)) {
-      expect((await request.get(`${WEB}/api/patients`)).status()).toBe(200);
+      expect(await patientsStatus(request)).toBe(200);
     }
     const fresh = [...issuedUsers()].filter((u) => !before.has(u));
     expect(fresh.length).toBeGreaterThanOrEqual(3); // the first credential plus two rotations
