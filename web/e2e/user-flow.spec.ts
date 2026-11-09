@@ -13,6 +13,9 @@ async function setUser(page: Page, mode: string) {
   // The port-forward resets idle connections, so a failed poll counts as "not yet".
   await expect.poll(async () => (await (await page.request.get("http://localhost:8081/healthz").catch(() => null))?.json())?.modes?.user, { timeout: 15_000 })
     .toBe(mode);
+  // That was web's copy of the mode. records-api enforces the user layer and polls the ConfigMap on its own 2 second
+  // timer, so give it a full cycle: without this the page can load before records-api has caught up and not be refused.
+  await new Promise((done) => setTimeout(done, 3_000));
 }
 
 async function signIn(page: Page, user: string) {
