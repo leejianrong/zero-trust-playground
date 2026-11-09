@@ -41,6 +41,10 @@ jobs:
     needs: [observer, clinic, web]
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # The full stack needs about 2.4 GiB; the 2g default is for the 8 GB laptop. Leave the CPUs uncapped here.
+      CLUSTER_MEM: 5g
+      CLUSTER_CPUS: ""
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v6

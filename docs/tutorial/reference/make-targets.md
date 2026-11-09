@@ -4,7 +4,7 @@ Every command runs from the repository root. `make` with no target prints this l
 
 | Target | What it does |
 |---|---|
-| `make up` | Creates the k3d cluster `ztp` and installs SPIRE |
+| `make up` | Creates the k3d cluster `ztp` and installs SPIRE. Caps the cluster at `CLUSTER_MEM` (default 2g, no swap) and `CLUSTER_CPUS` (default 4); use `CLUSTER_MEM=2800m` once Keycloak is installed |
 | `make spire` | Installs or upgrades SPIRE and the `clinic` registration |
 | `make down` | Deletes the cluster |
 | `make status` | Shows every pod and the node's memory use |

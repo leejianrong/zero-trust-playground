@@ -3,6 +3,11 @@ export
 
 CTX := k3d-$(CLUSTER_NAME)
 
+# Hard cap for the whole cluster (one node = one container). Swap equals memory, so the cluster never
+# touches the host's swap. Override per run: `make up CLUSTER_MEM=3g`; an empty CLUSTER_CPUS sets no CPU limit. About 2g fits without Keycloak, 2800m with it.
+CLUSTER_MEM  ?= 2g
+CLUSTER_CPUS ?= 4
+
 .DEFAULT_GOAL := help
 .PHONY: help
 help: ## list targets
@@ -14,6 +19,7 @@ up: ## create the cluster and install SPIRE
 	@k3d cluster list $(CLUSTER_NAME) >/dev/null 2>&1 || k3d cluster create $(CLUSTER_NAME) \
 	  --image $(K3S_IMAGE) --no-lb --wait --timeout 240s \
 	  --k3s-arg "--disable=traefik@server:0" --k3s-arg "--disable=metrics-server@server:0"
+	@docker update --memory $(CLUSTER_MEM) --memory-swap $(CLUSTER_MEM) $(if $(CLUSTER_CPUS),--cpus $(CLUSTER_CPUS)) k3d-$(CLUSTER_NAME)-server-0 >/dev/null
 	@kubectl --context $(CTX) create ns clinic --dry-run=client -o yaml | kubectl --context $(CTX) apply -f - >/dev/null
 	@$(MAKE) spire
 	@echo "ready: $(CTX)"
