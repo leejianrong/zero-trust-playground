@@ -20,6 +20,7 @@ spec:
           env:
             - {name: SPIFFE_ENDPOINT_SOCKET, value: "unix:///spiffe-workload-api/spire-agent.sock"}
           ports: [{containerPort: 8080}]
+          readinessProbe: {httpGet: {path: /healthz, port: 8080}, periodSeconds: 2, failureThreshold: 3}
           volumeMounts: [{name: spiffe, mountPath: /spiffe-workload-api, readOnly: true}]
       volumes: [{name: spiffe, csi: {driver: csi.spiffe.io, readOnly: true}}]
 ---
@@ -50,6 +51,7 @@ spec:
           imagePullPolicy: Never
           command: [python, -m, clinic.serve, "clinic.records_api:app", --mtls]
           ports: [{containerPort: 8080}]
+          readinessProbe: {httpGet: {path: /healthz, port: 8080}, periodSeconds: 2, failureThreshold: 3}
           env:
             - {name: SPIFFE_ENDPOINT_SOCKET, value: "unix:///spiffe-workload-api/spire-agent.sock"}
             - {name: DB_HOST, value: postgres.clinic.svc}
@@ -89,6 +91,7 @@ spec:
             - {name: ATTACK_LEAKED_DB_PASSWORD, value: clinic-static-pw}
             - {name: SPIFFE_ENDPOINT_SOCKET, value: "unix:///spiffe-workload-api/spire-agent.sock"}
           ports: [{containerPort: 8080}]
+          readinessProbe: {httpGet: {path: /healthz, port: 8080}, periodSeconds: 2, failureThreshold: 3}
           volumeMounts: [{name: spiffe, mountPath: /spiffe-workload-api, readOnly: true}]
       volumes: [{name: spiffe, csi: {driver: csi.spiffe.io, readOnly: true}}]
 ---
@@ -176,6 +179,7 @@ spec:
           env:
             - {name: SPIFFE_ENDPOINT_SOCKET, value: "unix:///spiffe-workload-api/spire-agent.sock"}
           ports: [{containerPort: 8080}]
+          readinessProbe: {httpGet: {path: /healthz, port: 8080}, periodSeconds: 2, failureThreshold: 3}
           volumeMounts: [{name: spiffe, mountPath: /spiffe-workload-api, readOnly: true}]
       volumes: [{name: spiffe, csi: {driver: csi.spiffe.io, readOnly: true}}]
 ---
